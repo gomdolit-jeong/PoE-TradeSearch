@@ -1,11 +1,12 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace PoETradeSearch.Core.Parsing;
 
 /// <summary>
-/// Parses the text PoE1 (English client) puts on the clipboard when you press Ctrl+C over an item.
-/// Also accepts the advanced copy format (Ctrl+Alt+C); the "{ Prefix Modifier ... }" header lines are skipped.
+/// Parses the text PoE1 puts on the clipboard when you press Ctrl+C over an item, from the English
+/// (global) or Korean (Kakao) client. Also accepts the advanced copy format (Ctrl+Alt+C); the
+/// "{ Prefix Modifier ... }" header lines are skipped.
 /// </summary>
 public static partial class ItemTextParser
 {
@@ -21,18 +22,6 @@ public static partial class ItemTextParser
         ["crucible"] = ModType.Crucible,
     };
 
-    private static readonly Dictionary<string, string> InfluenceLines = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Shaper Item"] = "shaper",
-        ["Elder Item"] = "elder",
-        ["Crusader Item"] = "crusader",
-        ["Hunter Item"] = "hunter",
-        ["Redeemer Item"] = "redeemer",
-        ["Warlord Item"] = "warlord",
-        ["Searing Exarch Item"] = "searing_exarch",
-        ["Eater of Worlds Item"] = "eater_of_worlds",
-    };
-
     [GeneratedRegex(@"[+-]?\d+(?:\.\d+)?")]
     private static partial Regex NumberRegex();
 
@@ -44,7 +33,7 @@ public static partial class ItemTextParser
 
     public static bool LooksLikeItem(string? text) =>
         !string.IsNullOrWhiteSpace(text) &&
-        (text.StartsWith("Item Class:", StringComparison.Ordinal) || text.StartsWith("Rarity:", StringComparison.Ordinal)) &&
+        ClientStrings.Detect(text) is not null &&
         text.Contains(SectionSeparator, StringComparison.Ordinal);
 
     public static ParsedItem Parse(string text)
@@ -53,42 +42,55 @@ public static partial class ItemTextParser
         if (!LooksLikeItem(text))
             throw new FormatException("Clipboard text is not a Path of Exile item.");
 
-        var item = new ParsedItem { RawText = text };
+        var strings = ClientStrings.Detect(text)!;
+        var item = new ParsedItem { RawText = text, Language = strings.Language };
         var sections = SplitSections(text);
 
-        ParseHeader(sections[0], item);
+        ParseHeader(sections[0], item, strings);
 
         // Sections that come before "Item Level" are properties/requirements/sockets.
         // Mod sections come after it. Items without an item level (gems, currency) have no mod sections we care about.
         bool pastItemLevel = false;
+        // Set after the first section with explicit mods; on uniques, later sections may be flavour text.
+        bool explicitSectionSeen = false;
 
         for (int i = 1; i < sections.Count; i++)
         {
             var section = sections[i];
 
-            if (TryParseFlagSection(section, item))
+            if (TryParseFlagSection(section, item, strings))
                 continue;
 
-            if (IsKeyValueSection(section))
+            // Before "Item Level" everything is properties/requirements/sockets. Weapon property sections start
+            // with a plain line ("One Handed Axe"), so read the "Key: Value" lines and skip the rest.
+            // After "Item Level" a "Key: Value" look is not enough: cluster jewel mods read
+            // "Added Small Passive Skills also grant: +5 to Maximum Mana".
+            if (!pastItemLevel)
             {
                 foreach (var line in section)
-                    ParseKeyValue(line, item, ref pastItemLevel);
+                    if (!ModSuffixRegex().IsMatch(line))
+                        ParseKeyValue(line, item, strings, ref pastItemLevel);
                 continue;
             }
 
-            if (!pastItemLevel)
-                continue;
-
-            if (IsModSection(section, item))
+            if (IsModSection(section, item, strings, explicitSectionSeen))
             {
+                bool hasExplicit = false;
                 foreach (var line in section)
                 {
                     var mod = ParseModLine(line);
-                    if (mod is not null)
-                        item.Mods.Add(mod);
+                    if (mod is null)
+                        continue;
+                    item.Mods.Add(mod);
+                    hasExplicit |= mod.Type is not (ModType.Implicit or ModType.Enchant);
                 }
+                explicitSectionSeen |= hasExplicit;
             }
         }
+
+        // A "(fractured)" mod means a fractured item even if the flag line wasn't recognised.
+        if (item.Mods.Any(m => m.Type == ModType.Fractured))
+            item.FracturedItem = true;
 
         return item;
     }
@@ -138,15 +140,15 @@ public static partial class ItemTextParser
         return sections;
     }
 
-    private static void ParseHeader(List<string> header, ParsedItem item)
+    private static void ParseHeader(List<string> header, ParsedItem item, ClientStrings strings)
     {
         var nameLines = new List<string>();
         foreach (var line in header)
         {
-            if (line.StartsWith("Item Class:", StringComparison.Ordinal))
-                item.ItemClass = line["Item Class:".Length..].Trim();
-            else if (line.StartsWith("Rarity:", StringComparison.Ordinal))
-                item.Rarity = ParseRarity(line["Rarity:".Length..].Trim());
+            if (line.StartsWith(strings.ItemClass, StringComparison.Ordinal))
+                item.ItemClass = line[strings.ItemClass.Length..].Trim();
+            else if (line.StartsWith(strings.Rarity, StringComparison.Ordinal))
+                item.Rarity = strings.Rarities.GetValueOrDefault(line[strings.Rarity.Length..].Trim(), ItemRarity.Unknown);
             else
                 nameLines.Add(line);
         }
@@ -162,35 +164,30 @@ public static partial class ItemTextParser
         }
     }
 
-    private static ItemRarity ParseRarity(string value) => value switch
-    {
-        "Normal" => ItemRarity.Normal,
-        "Magic" => ItemRarity.Magic,
-        "Rare" => ItemRarity.Rare,
-        "Unique" => ItemRarity.Unique,
-        "Gem" => ItemRarity.Gem,
-        "Currency" => ItemRarity.Currency,
-        "Divination Card" => ItemRarity.DivinationCard,
-        _ => ItemRarity.Unknown,
-    };
-
     /// <summary>Sections that only contain flag words like "Corrupted" or "Shaper Item".</summary>
-    private static bool TryParseFlagSection(List<string> section, ParsedItem item)
+    private static bool TryParseFlagSection(List<string> section, ParsedItem item, ClientStrings strings)
     {
-        bool allFlags = section.All(l =>
-            l is "Corrupted" or "Unidentified" or "Mirrored" or "Synthesised Item" || InfluenceLines.ContainsKey(l));
+        bool allFlags = section.All(l => strings.Flags.ContainsKey(l) || strings.Influences.ContainsKey(l));
         if (!allFlags)
             return false;
 
         foreach (var line in section)
         {
-            switch (line)
+            if (strings.Influences.TryGetValue(line, out var influence))
             {
-                case "Corrupted": item.Corrupted = true; break;
-                case "Unidentified": item.Unidentified = true; break;
-                case "Mirrored": item.Mirrored = true; break;
-                case "Synthesised Item": item.Synthesised = true; break;
-                default: item.Influences.Add(InfluenceLines[line]); break;
+                item.Influences.Add(influence);
+                continue;
+            }
+            switch (strings.Flags[line])
+            {
+                case ItemFlag.Corrupted: item.Corrupted = true; break;
+                case ItemFlag.Unidentified: item.Unidentified = true; break;
+                case ItemFlag.Mirrored: item.Mirrored = true; break;
+                case ItemFlag.Split: item.Split = true; break;
+                case ItemFlag.Synthesised: item.Synthesised = true; break;
+                case ItemFlag.Fractured: item.FracturedItem = true; break;
+                case ItemFlag.SearingExarch: item.SearingExarch = true; break;
+                case ItemFlag.EaterOfWorlds: item.EaterOfWorlds = true; break;
             }
         }
         return true;
@@ -202,7 +199,7 @@ public static partial class ItemTextParser
         return section.All(l => KeyValueRegex().IsMatch(l) && !ModSuffixRegex().IsMatch(l));
     }
 
-    private static void ParseKeyValue(string line, ParsedItem item, ref bool pastItemLevel)
+    private static void ParseKeyValue(string line, ParsedItem item, ClientStrings strings, ref bool pastItemLevel)
     {
         var m = KeyValueRegex().Match(line);
         if (!m.Success)
@@ -211,48 +208,44 @@ public static partial class ItemTextParser
         var key = m.Groups["key"].Value.Trim();
         var value = m.Groups["value"].Value.Trim();
 
-        switch (key)
+        if (key == strings.ItemLevel)
         {
-            case "Item Level":
-                item.ItemLevel = FirstInt(value);
-                pastItemLevel = true;
-                break;
-            case "Quality":
-                item.Quality = FirstInt(value);
-                break;
-            case "Sockets":
-                item.Sockets = value;
-                break;
-            case "Stack Size":
-                item.StackSize = FirstInt(value);
-                break;
-            case "Level" when item.Rarity == ItemRarity.Gem && item.GemLevel is null:
-                item.GemLevel = FirstInt(value);
-                break;
-            case "Requirements":
-                break;
-            default:
-                item.Properties.TryAdd(key, value);
-                break;
+            item.ItemLevel = FirstInt(value);
+            pastItemLevel = true;
         }
+        else if (key == strings.Quality)
+            item.Quality = FirstInt(value);
+        else if (key == strings.Sockets)
+            item.Sockets = value;
+        else if (key == strings.StackSize)
+            item.StackSize = FirstInt(value);
+        else if (key == strings.GemLevel && item.Rarity == ItemRarity.Gem && item.GemLevel is null)
+            item.GemLevel = FirstInt(value);
+        else if (value.Length > 0) // "Requirements:" style headers have no value
+            item.Properties.TryAdd(key, value);
     }
 
     /// <summary>
-    /// Mod sections contain at least one line with a number or a mod suffix. This filters out
-    /// flavour text on uniques and usage hints ("Place into an allocated Jewel Socket...").
+    /// Decides whether a section after "Item Level" holds mods, filtering out price notes, usage hints
+    /// ("Place into an allocated Jewel Socket...") and unique flavour text.
     /// </summary>
-    private static bool IsModSection(List<string> section, ParsedItem item)
+    private static bool IsModSection(List<string> section, ParsedItem item, ClientStrings strings, bool explicitSectionSeen)
     {
-        if (section.Any(l => l.StartsWith("Note:", StringComparison.Ordinal)))
+        if (section.Any(l => l.StartsWith(strings.Note, StringComparison.Ordinal)))
             return false;
-        if (section.Any(l => l.StartsWith("Place into", StringComparison.Ordinal) ||
-                             l.StartsWith("Right click", StringComparison.Ordinal)))
+        if (section.Any(l => strings.UsageHints.Any(h => l.StartsWith(h, StringComparison.Ordinal))))
             return false;
 
         // Only uniques have flavour text, so for other rarities every remaining section is mods.
         if (item.Rarity != ItemRarity.Unique)
             return true;
 
+        // A unique's first section after the implicits is its explicit mods, even without numbers
+        // ("Allocates Tasalio, Cleansing Water if you have the matching modifier on Forbidden Flesh").
+        if (!explicitSectionSeen)
+            return true;
+
+        // After that, only sections that look like mods; flavour text has no numbers or mod markers.
         return section.Any(l => ModSuffixRegex().IsMatch(l) || NumberRegex().IsMatch(l) || l.StartsWith('{'));
     }
 

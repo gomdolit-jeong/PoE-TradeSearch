@@ -33,6 +33,9 @@ public sealed record ItemMod(string Text, string Template, IReadOnlyList<double>
 
 public sealed class ParsedItem
 {
+    /// <summary>Client language the text came from: English (global) or Korean (Kakao).</summary>
+    public ClientLanguage Language { get; set; }
+
     public string? ItemClass { get; set; }
     public ItemRarity Rarity { get; set; }
 
@@ -52,7 +55,21 @@ public sealed class ParsedItem
     public bool Unidentified { get; set; }
     public bool Mirrored { get; set; }
     public bool Synthesised { get; set; }
+    public bool Split { get; set; }
+
+    /// <summary>"Fractured Item" line: at least one mod is fractured and can't be changed.</summary>
+    public bool FracturedItem { get; set; }
+
+    public bool SearingExarch { get; set; }
+    public bool EaterOfWorlds { get; set; }
+
+    /// <summary>Shaper/Elder/Conqueror influences: "shaper", "elder", "crusader", "hunter", "redeemer", "warlord".</summary>
     public List<string> Influences { get; } = [];
+
+    /// <summary>Size of the largest linked socket group: "B-B-B-B-B B" → 5. 0 when the item has no sockets.</summary>
+    public int MaxLinks => Sockets is null
+        ? 0
+        : Sockets.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(g => g.Split('-').Length).DefaultIfEmpty(0).Max();
 
     /// <summary>Other "Key: Value" properties (Armour, Evasion Rating, Physical Damage, ...).</summary>
     public Dictionary<string, string> Properties { get; } = new(StringComparer.OrdinalIgnoreCase);

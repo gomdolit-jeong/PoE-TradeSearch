@@ -37,6 +37,74 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll")]
     public static partial short GetAsyncKeyState(int vKey);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetCursorPos(out POINT point);
+
+    [LibraryImport("user32.dll")]
+    public static partial uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    /// <summary>Increases every time anything is written to the clipboard.</summary>
+    [LibraryImport("user32.dll")]
+    public static partial uint GetClipboardSequenceNumber();
+
+    private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    private const uint TOKEN_QUERY = 0x0008;
+    private const int TokenElevation = 20;
+    private const int ERROR_ACCESS_DENIED = 5;
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint processId);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CloseHandle(IntPtr handle);
+
+    [LibraryImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+
+    [LibraryImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetTokenInformation(IntPtr token, int infoClass, out int info, int length, out int returnLength);
+
+    /// <summary>
+    /// Whether a process runs as administrator. A normal process can't open an elevated process's token,
+    /// so "access denied" also means elevated. Null when it can't be determined.
+    /// </summary>
+    public static bool? IsProcessElevated(uint processId)
+    {
+        var process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+        if (process == IntPtr.Zero)
+            return Marshal.GetLastWin32Error() == ERROR_ACCESS_DENIED ? true : null;
+        try
+        {
+            if (!OpenProcessToken(process, TOKEN_QUERY, out var token))
+                return Marshal.GetLastWin32Error() == ERROR_ACCESS_DENIED ? true : null;
+            try
+            {
+                return GetTokenInformation(token, TokenElevation, out var elevated, sizeof(int), out _)
+                    ? elevated != 0
+                    : null;
+            }
+            finally
+            {
+                CloseHandle(token);
+            }
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
     [LibraryImport("user32.dll", SetLastError = true)]
     private static partial uint SendInput(uint nInputs, [In] INPUT[] pInputs, int cbSize);
 
@@ -50,7 +118,8 @@ internal static partial class NativeMethods
     public static bool IsKeyDown(ushort vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
     /// <summary>Sends key presses to the foreground window. Each entry is (virtual key, isKeyUp).</summary>
-    public static void SendKeys(params (ushort Vk, bool Up)[] keys)
+    /// <returns>How many events Windows accepted, and the Win32 error if fewer than sent.</returns>
+    public static (uint Sent, int Error) SendKeys(params (ushort Vk, bool Up)[] keys)
     {
         var inputs = new INPUT[keys.Length];
         for (int i = 0; i < keys.Length; i++)
@@ -68,7 +137,8 @@ internal static partial class NativeMethods
                 },
             };
         }
-        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        return (sent, sent < inputs.Length ? Marshal.GetLastWin32Error() : 0);
     }
 
     [StructLayout(LayoutKind.Sequential)]

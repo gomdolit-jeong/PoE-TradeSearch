@@ -42,22 +42,15 @@ public sealed partial class StatMatcher
         [ModType.Crucible] = "crucible",
     };
 
-    // Item classes whose defence/damage mods are "local" (they modify the item itself).
-    private static readonly HashSet<string> LocalModItemClasses = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Body Armours", "Helmets", "Gloves", "Boots", "Shields",
-        "Claws", "Daggers", "Rune Daggers", "Wands", "One Hand Swords", "Thrusting One Hand Swords",
-        "One Hand Axes", "One Hand Maces", "Sceptres", "Bows", "Staves", "Warstaves",
-        "Two Hand Swords", "Two Hand Axes", "Two Hand Maces", "Fishing Rods",
-    };
-
     private static readonly (string From, string To)[] OppositeWords =
     [
         ("increased", "reduced"), ("reduced", "increased"),
         ("more", "less"), ("less", "more"),
+        ("증가", "감소"), ("감소", "증가"),
     ];
 
-    private const string LocalSuffix = " (Local)";
+    /// <summary>How "local" stats are marked: " (Local)" on the global site, "(특정)" on Kakao.</summary>
+    private static readonly string[] LocalSuffixes = [" (Local)", "(특정)"];
 
     // Key: "group|shape", value: candidates in the order the API lists them.
     private readonly Dictionary<string, List<Candidate>> _byShape = new(StringComparer.Ordinal);
@@ -81,7 +74,11 @@ public sealed partial class StatMatcher
 
     public IReadOnlyList<MatchedMod> Match(ParsedItem item)
     {
-        bool preferLocal = item.ItemClass is not null && LocalModItemClasses.Contains(item.ItemClass);
+        // Weapon and armour defence/damage mods are "local" (they modify the item itself).
+        var category = ItemCategories.FromItemClass(item.ItemClass);
+        bool preferLocal = category is not null &&
+                           (category.StartsWith("weapon.", StringComparison.Ordinal) ||
+                            (category.StartsWith("armour.", StringComparison.Ordinal) && category != "armour.quiver"));
         var results = new List<MatchedMod>();
 
         for (int i = 0; i < item.Mods.Count; i++)
@@ -142,16 +139,19 @@ public sealed partial class StatMatcher
     {
         var shape = Shape(text);
 
-        // On weapons/armour prefer "(Local)" stats; elsewhere use the plain stat and only then try local.
-        string[] shapes = preferLocal ? [shape + LocalSuffix, shape] : [shape, shape + LocalSuffix];
+        // On weapons/armour prefer local stats; elsewhere use the plain stat and only then try local.
+        var local = LocalSuffixes.Select(suffix => (Shape: shape + suffix, Suffix: suffix));
+        (string Shape, string Suffix)[] shapes = preferLocal
+            ? [.. local, (shape, "")]
+            : [(shape, ""), .. local];
 
-        foreach (var s in shapes)
+        foreach (var (s, suffix) in shapes)
         {
             if (!_byShape.TryGetValue(Key(group, s), out var candidates))
                 continue;
 
             // Local candidates carry the suffix in their regex, so match against the text with it appended.
-            var input = s.EndsWith(LocalSuffix, StringComparison.Ordinal) ? text + LocalSuffix : text;
+            var input = text + suffix;
 
             var matching = new List<(Candidate Candidate, List<double> Values)>();
             foreach (var c in candidates)

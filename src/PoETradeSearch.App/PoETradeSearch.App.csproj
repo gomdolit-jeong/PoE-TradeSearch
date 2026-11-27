@@ -4,6 +4,12 @@
     <ProjectReference Include="..\PoETradeSearch.Core\PoETradeSearch.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Window title bar icon and the logo shown inside the windows. -->
+    <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\app.png" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net11.0-windows</TargetFramework>
@@ -11,6 +17,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Output is PoETradeSearch.exe (the project folder keeps its .App name). -->
+    <AssemblyName>PoETradeSearch</AssemblyName>
+    <!-- exe / taskbar icon. Regenerate with tools\make-icon.ps1. -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>
