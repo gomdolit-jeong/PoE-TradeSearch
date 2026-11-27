@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PoETradeSearch.App/PoETradeSearch.App.csproj" />
+    <Project Path="src/PoETradeSearch.Core/PoETradeSearch.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PoETradeSearch.Tests/PoETradeSearch.Tests.csproj" />
+  </Folder>
+</Solution>
