@@ -1,8 +1,10 @@
-﻿using System.Text;
+﻿using System.Net.Http;
+using System.Text;
 using System.Windows;
 using PoETradeSearch.App.Native;
 using PoETradeSearch.App.Services;
 using PoETradeSearch.Core.Parsing;
+using PoETradeSearch.Core.Trade;
 
 namespace PoETradeSearch.App;
 
@@ -10,14 +12,26 @@ public partial class MainWindow : Window
 {
     private const uint VK_D = 0x44;
 
+    private static readonly HttpClient Http = CreateHttpClient();
+
     private GlobalHotkey? _priceCheckHotkey;
+    private StatMatcher? _matcher;
     private bool _busy;
 
     public MainWindow()
     {
         InitializeComponent();
         SourceInitialized += (_, _) => RegisterHotkeys();
+        Loaded += async (_, _) => await LoadStatsAsync();
         Closed += (_, _) => _priceCheckHotkey?.Dispose();
+    }
+
+    private static HttpClient CreateHttpClient()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        // GGG asks tools to identify themselves; requests without a User-Agent are rejected.
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("PoETradeSearch/0.2");
+        return http;
     }
 
     private void RegisterHotkeys()
@@ -27,13 +41,27 @@ public partial class MainWindow : Window
             _priceCheckHotkey = new GlobalHotkey(this, NativeMethods.MOD_CONTROL, VK_D, "Ctrl+D");
             _priceCheckHotkey.Pressed += async (_, _) => await OnPriceCheckHotkeyAsync();
             StatusText.Text = $"대기 중 — 게임에서 아이템에 마우스를 올리고 {_priceCheckHotkey.Description}";
-            HintText.Text = "단축키를 누르면 Ctrl+C를 한 번 보내 아이템 정보를 복사하고 파싱합니다. " +
-                            "(거래소 검색은 다음 단계에서 붙습니다)";
+            HintText.Text = "단축키를 누르면 Ctrl+C를 한 번 보내 아이템 정보를 복사하고, 옵션을 거래소 stat ID로 매칭합니다. " +
+                            "(실제 거래소 검색은 다음 단계에서 붙습니다)";
         }
         catch (Exception ex)
         {
             StatusText.Text = "단축키 등록 실패";
             HintText.Text = ex.Message;
+        }
+    }
+
+    private async Task LoadStatsAsync()
+    {
+        try
+        {
+            var (stats, source) = await new TradeStatsRepository(Http).LoadAsync();
+            _matcher = await Task.Run(() => new StatMatcher(stats));
+            StatsText.Text = $"거래소 stat {_matcher.StatCount:N0}개 로드됨 — {source}";
+        }
+        catch (Exception ex)
+        {
+            StatsText.Text = "stat 데이터 로드 실패 — 파싱만 동작합니다: " + ex.Message;
         }
     }
 
@@ -74,13 +102,31 @@ public partial class MainWindow : Window
         ShowItem(text!);
     }
 
+    private void CopyOutputButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetText(OutputText.Text);
+            StatusText.Text = "결과를 클립보드에 복사했습니다";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "복사 실패: " + ex.Message;
+        }
+    }
+
     private void ShowItem(string text)
     {
         try
         {
             var item = ItemTextParser.Parse(text);
-            StatusText.Text = $"파싱 완료: {item.Name ?? item.BaseType} ({DateTime.Now:HH:mm:ss})";
-            OutputText.Text = Describe(item);
+            var matches = _matcher?.Match(item);
+            int matched = matches?.Count(m => m.IsMatched) ?? 0;
+
+            StatusText.Text = matches is null
+                ? $"파싱 완료: {item.Name ?? item.BaseType} ({DateTime.Now:HH:mm:ss})"
+                : $"파싱 완료: {item.Name ?? item.BaseType} — 옵션 {matched}/{matches.Count}개 매칭 ({DateTime.Now:HH:mm:ss})";
+            OutputText.Text = Describe(item, matches);
         }
         catch (Exception ex)
         {
@@ -89,7 +135,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string Describe(ParsedItem item)
+    private static string Describe(ParsedItem item, IReadOnlyList<MatchedMod>? matches)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"Class     : {item.ItemClass}");
@@ -112,10 +158,34 @@ public partial class MainWindow : Window
             sb.AppendLine($"  {key}: {value}");
 
         sb.AppendLine();
-        sb.AppendLine("Mods:");
-        foreach (var mod in item.Mods)
-            sb.AppendLine($"  [{mod.Type,-9}] {mod.Template,-50} {string.Join(", ", mod.Values)}");
+        if (matches is null)
+        {
+            sb.AppendLine("Mods (stat 데이터 없음, 매칭 안 함):");
+            foreach (var mod in item.Mods)
+                sb.AppendLine($"  [{mod.Type,-9}] {mod.Template,-50} {string.Join(", ", mod.Values)}");
+        }
+        else
+        {
+            sb.AppendLine("Mods → 거래소 stat:");
+            foreach (var m in matches)
+            {
+                var type = m.Source[0].Type;
+                if (m.Stat is null)
+                {
+                    sb.AppendLine($"  [{type,-9}] ✗ 매칭 실패: {m.DisplayText}");
+                    continue;
+                }
+                sb.AppendLine($"  [{type,-9}] ✓ {m.Stat.Text.Replace("\n", " / ")}");
+                sb.Append($"              {m.Stat.Id}");
+                if (m.SearchValue is not null) sb.Append($"  값={m.SearchValue}");
+                if (m.AlternativeIds.Count > 0) sb.Append($"  (동일 텍스트: {string.Join(", ", m.AlternativeIds)})");
+                sb.AppendLine();
+            }
+        }
 
+        sb.AppendLine();
+        sb.AppendLine("──── 원본 아이템 텍스트 ────");
+        sb.AppendLine(item.RawText.Trim());
         return sb.ToString();
     }
 }

@@ -1,0 +1,153 @@
+{
+    "result":  [
+                   {
+                       "id":  "explicit",
+                       "label":  "Explicit",
+                       "entries":  [
+                                       {
+                                           "id":  "explicit.stat_3299347043",
+                                           "text":  "+# to maximum Life",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_1671376347",
+                                           "text":  "+#% to Lightning Resistance",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_3372524247",
+                                           "text":  "+#% to Fire Resistance",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_4220027924",
+                                           "text":  "+#% to Cold Resistance",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_3261801346",
+                                           "text":  "+# to Dexterity",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_4080418644",
+                                           "text":  "+# to Strength",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_3489782002",
+                                           "text":  "+# to maximum Energy Shield",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_2250533757",
+                                           "text":  "#% increased Movement Speed",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_210067635",
+                                           "text":  "#% increased Attack Speed (Local)",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_3032590688",
+                                           "text":  "Adds # to # Physical Damage to Attacks",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_4052037485",
+                                           "text":  "+# to maximum Energy Shield (Local)",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_1940865751",
+                                           "text":  "Adds # to # Physical Damage (Local)",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_681332047",
+                                           "text":  "#% increased Attack Speed",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_4015621042",
+                                           "text":  "#% increased Energy Shield (Local)",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_3680664274",
+                                           "text":  "+#% chance to Suppress Spell Damage",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_474294393",
+                                           "text":  "#% reduced Mana Cost of Skills",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_960081730",
+                                           "text":  "Adds # to # Physical Damage",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_2913235441",
+                                           "text":  "When you Kill a Rare monster, you gain its Modifiers for 60 seconds",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_2137878565",
+                                           "text":  "#% increased Damage with Hits against Rare monsters",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_492027537",
+                                           "text":  "+#% chance to Suppress Spell Damage",
+                                           "type":  "explicit"
+                                       },
+                                       {
+                                           "id":  "explicit.stat_344979199",
+                                           "text":  "Your Maps have +#% chance to contain other Extra Content that can\nbe turned off through Atlas Passives",
+                                           "type":  "explicit"
+                                       }
+                                   ]
+                   },
+                   {
+                       "id":  "implicit",
+                       "label":  "Implicit",
+                       "entries":  [
+                                       {
+                                           "id":  "implicit.stat_3299347043",
+                                           "text":  "+# to maximum Life",
+                                           "type":  "implicit"
+                                       },
+                                       {
+                                           "id":  "implicit.stat_2923486259",
+                                           "text":  "+#% to Chaos Resistance",
+                                           "type":  "implicit"
+                                       }
+                                   ]
+                   },
+                   {
+                       "id":  "fractured",
+                       "label":  "Fractured",
+                       "entries":  [
+                                       {
+                                           "id":  "fractured.stat_1671376347",
+                                           "text":  "+#% to Lightning Resistance",
+                                           "type":  "fractured"
+                                       }
+                                   ]
+                   },
+                   {
+                       "id":  "crafted",
+                       "label":  "Crafted",
+                       "entries":  [
+                                       {
+                                           "id":  "crafted.stat_4220027924",
+                                           "text":  "+#% to Cold Resistance",
+                                           "type":  "crafted"
+                                       }
+                                   ]
+                   }
+               ]
+}

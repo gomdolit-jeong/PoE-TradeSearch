@@ -12,7 +12,10 @@
                           VerticalAlignment="Center" Content="PoE 창이 앞에 있을 때만 동작" />
                 <Button x:Name="ParseClipboardButton" Margin="16,0,0,0" Padding="10,3"
                         Content="현재 클립보드 파싱 (테스트용)" Click="ParseClipboardButton_Click" />
+                <Button x:Name="CopyOutputButton" Margin="8,0,0,0" Padding="10,3"
+                        Content="결과 복사 (버그 제보용)" Click="CopyOutputButton_Click" />
             </StackPanel>
+            <TextBlock x:Name="StatsText" Margin="0,6,0,0" Foreground="#999999" Text="거래소 stat 데이터 불러오는 중..." />
         </StackPanel>
         <TextBox x:Name="OutputText" IsReadOnly="True" FontFamily="Consolas, Malgun Gothic"
                  Background="#111111" Foreground="#DDDDDD" BorderBrush="#333333"
