@@ -16,10 +16,10 @@ public partial class SearchWindow : Window
     {
         ["shaper"] = "쉐이퍼",
         ["elder"] = "엘더",
-        ["crusader"] = "크루세이더",
-        ["hunter"] = "헌터",
-        ["redeemer"] = "리디머",
-        ["warlord"] = "워로드",
+        ["crusader"] = "십자군",
+        ["hunter"] = "사냥꾼",
+        ["redeemer"] = "대속자",
+        ["warlord"] = "전쟁군주",
     };
 
     private readonly ParsedItem _item;

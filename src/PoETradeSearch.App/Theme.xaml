@@ -93,8 +93,8 @@
     <Style x:Key="Chip" TargetType="ToggleButton">
         <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Margin" Value="0,0,6,6" />
-        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="Margin" Value="0,0,5,4" />
+        <Setter Property="Padding" Value="8,2" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Template">
             <Setter.Value>
@@ -129,7 +129,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
-                    <Border x:Name="Bd" CornerRadius="10" Padding="9,3" Background="Transparent">
+                    <Border x:Name="Bd" CornerRadius="10" Padding="7,2" Background="Transparent">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
