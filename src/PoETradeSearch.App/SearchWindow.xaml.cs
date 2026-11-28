@@ -49,7 +49,11 @@ public partial class SearchWindow : Window
         ApplyDefaults(defaults);
 
         foreach (var m in matches)
-            _rows.Add(ModFilterRow.Create(m, item));
+        {
+            var row = ModFilterRow.Create(m, item);
+            row.StartsNewGroup = _rows.Count > 0 && _rows[^1].IsFixedMod && !row.IsFixedMod;
+            _rows.Add(row);
+        }
         ModsList.ItemsSource = _rows;
         // Gems, currency and cards have no mods to choose from.
         ModsSection.Visibility = _rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -63,7 +67,7 @@ public partial class SearchWindow : Window
     private void ShowHeader(ParsedItem item, string league)
     {
         var rarityBrush = Palette.Rarity(item.Rarity);
-        ItemNameText.Text = item.Name ?? item.BaseType ?? "알 수 없는 아이템";
+        ItemNameText.Text = (item.Foulborn ? "삿된 " : "") + (item.Name ?? item.BaseType ?? "알 수 없는 아이템");
         ItemNameText.Foreground = rarityBrush;
 
         RarityBadgeText.Text = item.Rarity switch
@@ -90,7 +94,8 @@ public partial class SearchWindow : Window
         info.Add(league);
         ItemInfoText.Text = string.Join("   ·   ", info);
 
-        UniqueHintText.Visibility = item.Rarity == ItemRarity.Unique ? Visibility.Visible : Visibility.Collapsed;
+        // Kept as a tooltip on the name so the header stays one line.
+        ItemNameText.ToolTip = item.Rarity == ItemRarity.Unique ? UniqueHintText.Text : null;
     }
 
     /// <summary>Shows only the chips that apply to this item, pre-set from the defaults.</summary>
@@ -123,7 +128,7 @@ public partial class SearchWindow : Window
         }
 
         SocketsPanel.Visibility = item.SocketCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-        SocketsChip.IsChecked = defaults.SocketsMin is not null || defaults.SocketColours.Any;
+        (defaults.SocketsMin is not null || defaults.SocketColours.Any ? SocketsChip : SocketsAny).IsChecked = true;
         SocketCountText.Text = defaults.SocketsMin?.ToString() ?? "";
         SocketRedText.Text = defaults.SocketColours.Red?.ToString() ?? "";
         SocketGreenText.Text = defaults.SocketColours.Green?.ToString() ?? "";
@@ -161,6 +166,14 @@ public partial class SearchWindow : Window
             null => CorruptedAny,
         }).IsChecked = true;
 
+        // Foulborn copy → "삿된 아이템만"; normal unique → "삿된 아이템 제외" (a Foulborn copy lacks one of its mods).
+        // Off → either.
+        FoulbornChip.Content = item.Foulborn ? "삿된 아이템만" : "삿된 아이템 제외";
+        FoulbornChip.ToolTip = item.Foulborn
+            ? "끄면 일반 버전도 같이 찾습니다"
+            : "삿된 버전은 옵션 하나가 다른 옵션으로 바뀌어 있어 따로 뺍니다. 끄면 같이 찾습니다";
+        Show(FoulbornChip, defaults.Foulborn is not null, defaults.Foulborn is not null);
+
         static void Show(ToggleButton chip, bool applies, bool isChecked)
         {
             chip.Visibility = applies ? Visibility.Visible : Visibility.Collapsed;
@@ -196,11 +209,13 @@ public partial class SearchWindow : Window
             SearingExarch = SearingChip.IsChecked == true && SearingChip.IsVisible,
             EaterOfWorlds = TangledChip.IsChecked == true && TangledChip.IsVisible,
             Corrupted = CorruptedOnly.IsChecked == true ? true : CorruptedNo.IsChecked == true ? false : null,
+            Foulborn = FoulbornChip.IsVisible && FoulbornChip.IsChecked == true ? _item.Foulborn : null,
             GemLevelMin = GemLevelChip.IsChecked == true && GemLevelPanel.IsVisible ? ParseInt(GemLevelMinText.Text) : null,
             GemLevelMax = GemLevelChip.IsChecked == true && GemLevelPanel.IsVisible ? ParseInt(GemLevelMaxText.Text) : null,
             QualityMin = QualityChip.IsChecked == true && QualityPanel.IsVisible ? ParseInt(QualityMinText.Text) : null,
             QualityMax = QualityChip.IsChecked == true && QualityPanel.IsVisible ? ParseInt(QualityMaxText.Text) : null,
             TransfiguredGem = _transfiguredGem,
+            NewestFirst = SortNewest.IsChecked == true,
             SocketsMin = SocketsChip.IsChecked == true && SocketsPanel.IsVisible ? ParseInt(SocketCountText.Text) : null,
             SocketColours = SocketsChip.IsChecked == true && SocketsPanel.IsVisible
                 ? new SocketColours(ParseInt(SocketRedText.Text), ParseInt(SocketGreenText.Text), ParseInt(SocketBlueText.Text), ParseInt(SocketWhiteText.Text))
@@ -263,7 +278,7 @@ public partial class SearchWindow : Window
                 _results.Add(new ListingView { Listing = l, Rank = _results.Count + 1, Currencies = _currencies });
 
             MoreButton.Visibility = _results.Count < _lastSearch.ResultIds.Count ? Visibility.Visible : Visibility.Collapsed;
-            SetBusy(false, $"{_lastSearch.Total:N0}개 중 {_results.Count}개 · 가격 낮은 순");
+            SetBusy(false, $"{_lastSearch.Total:N0}개 중 {_results.Count}개");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -282,6 +297,7 @@ public partial class SearchWindow : Window
         var strict = new List<string>();
         if (CorruptedNo.IsChecked == true) strict.Add("타락 제외");
         if (CorruptedOnly.IsChecked == true) strict.Add("타락만");
+        if (FoulbornChip.IsVisible && FoulbornChip.IsChecked == true && _item.Foulborn) strict.Add("삿된 아이템만");
         if (FracturedChip.IsVisible && FracturedChip.IsChecked == true) strict.Add("분열 아이템만");
         if (LinksPanel.IsVisible && LinksChip.IsChecked == true) strict.Add("링크");
         if (GemLevelPanel.IsVisible && GemLevelChip.IsChecked == true) strict.Add("젬 레벨");
@@ -339,6 +355,13 @@ public partial class SearchWindow : Window
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
     private async void SearchButton_Click(object sender, RoutedEventArgs e) => await SearchAsync();
+
+    /// <summary>Switching between cheapest and newest searches again right away.</summary>
+    private async void Sort_Checked(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded && _lastSearch is not null)
+            await SearchAsync();
+    }
 
     private async void MoreButton_Click(object sender, RoutedEventArgs e)
     {

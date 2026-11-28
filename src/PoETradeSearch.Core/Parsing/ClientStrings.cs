@@ -22,6 +22,10 @@ public sealed class ClientStrings
     public required string StackSize { get; init; }
     public required string GemLevel { get; init; }
     public required string Note { get; init; }
+    /// <summary>Name prefix of Foulborn uniques (one mod replaced by a mutated mod): "Foulborn Warped Timepiece".</summary>
+    public required string FoulbornPrefix { get; init; }
+    /// <summary>Base type prefix of synthesised items: "Synthesised Iron Ring".</summary>
+    public required string SynthesisedPrefix { get; init; }
     public required IReadOnlyDictionary<string, ItemRarity> Rarities { get; init; }
     public required IReadOnlyDictionary<string, ItemFlag> Flags { get; init; }
     public required IReadOnlyDictionary<string, string> Influences { get; init; }
@@ -38,6 +42,8 @@ public sealed class ClientStrings
         StackSize = "Stack Size",
         GemLevel = "Level",
         Note = "Note:",
+        FoulbornPrefix = "Foulborn ",
+        SynthesisedPrefix = "Synthesised ",
         Rarities = new Dictionary<string, ItemRarity>
         {
             ["Normal"] = ItemRarity.Normal,
@@ -83,6 +89,8 @@ public sealed class ClientStrings
         StackSize = "중첩 개수",
         GemLevel = "레벨",
         Note = "메모:",
+        FoulbornPrefix = "삿된 ",
+        SynthesisedPrefix = "결합된 ",
         Rarities = new Dictionary<string, ItemRarity>
         {
             ["일반"] = ItemRarity.Normal,

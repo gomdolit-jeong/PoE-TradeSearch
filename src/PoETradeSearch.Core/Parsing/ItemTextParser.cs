@@ -31,6 +31,16 @@ public static partial class ItemTextParser
     [GeneratedRegex(@"^(?<key>[^:]+):\s*(?<value>.*)$")]
     private static partial Regex KeyValueRegex();
 
+    [GeneratedRegex(@"Foulborn|Mutated|삿된|변이")]
+    private static partial Regex MutatedHeaderRegex();
+
+    [GeneratedRegex(@"Implicit Modifier|고정 속성")]
+    private static partial Regex ImplicitHeaderRegex();
+
+    /// <summary>"{ 타락 고정 속성 부여 — ... }" / "{ Corrupted Implicit Modifier — ... }"</summary>
+    [GeneratedRegex(@"Corrupted|타락")]
+    private static partial Regex CorruptedHeaderRegex();
+
     public static bool LooksLikeItem(string? text) =>
         !string.IsNullOrWhiteSpace(text) &&
         ClientStrings.Detect(text) is not null &&
@@ -76,11 +86,33 @@ public static partial class ItemTextParser
             if (IsModSection(section, item, strings, explicitSectionSeen))
             {
                 bool hasExplicit = false;
+                bool mutatedHeader = false;
+                bool implicitHeader = false;
+                bool corruptedHeader = false;
                 foreach (var line in section)
                 {
+                    // Advanced copy headers describe the line(s) after them. Implicit lines lose their
+                    // "(implicit)" suffix there, so "{ 고정 속성 부여 — ... }" / "{ Implicit Modifier — ... }" is
+                    // the only sign. A Foulborn header marks the mutated mod.
+                    if (line.StartsWith('{'))
+                    {
+                        mutatedHeader = MutatedHeaderRegex().IsMatch(line);
+                        implicitHeader = ImplicitHeaderRegex().IsMatch(line);
+                        corruptedHeader = implicitHeader && CorruptedHeaderRegex().IsMatch(line);
+                        continue;
+                    }
+                    // Reminder text under a mod: ("능력치"는 힘, 민첩, 지능입니다), (Attributes are Strength, ...)
+                    if (line.StartsWith('(') && line.EndsWith(')'))
+                        continue;
                     var mod = ParseModLine(line);
                     if (mod is null)
                         continue;
+                    if (implicitHeader && mod.Type == ModType.Explicit)
+                        mod = mod with { Type = ModType.Implicit };
+                    if (corruptedHeader)
+                        mod = mod with { FromCorruption = true };
+                    if (mutatedHeader)
+                        mod = mod with { Mutated = true };
                     item.Mods.Add(mod);
                     hasExplicit |= mod.Type is not (ModType.Implicit or ModType.Enchant);
                 }
@@ -178,11 +210,25 @@ public static partial class ItemTextParser
         if (nameLines.Count >= 2)
         {
             item.Name = nameLines[0];
+            // "삿된 뒤틀린 시계" is a Foulborn "뒤틀린 시계": the trade site wants the plain name plus a Foulborn filter.
+            if (item.Rarity == ItemRarity.Unique && item.Name.StartsWith(strings.FoulbornPrefix, StringComparison.Ordinal))
+            {
+                item.Foulborn = true;
+                item.Name = item.Name[strings.FoulbornPrefix.Length..];
+            }
             item.BaseType = nameLines[1];
         }
         else if (nameLines.Count == 1)
         {
             item.BaseType = nameLines[0];
+        }
+
+        // "결합된 철제 반지" / "Synthesised Iron Ring": the trade site knows the base as "철제 반지" and
+        // searches synthesised items with a separate filter.
+        if (item.BaseType is { } baseType && baseType.StartsWith(strings.SynthesisedPrefix, StringComparison.Ordinal))
+        {
+            item.BaseType = baseType[strings.SynthesisedPrefix.Length..];
+            item.Synthesised = true;
         }
     }
 

@@ -56,13 +56,22 @@ public static class ModDefaults
         if (type == ModType.Enchant)
             return IsClusterJewel(item) && IsVariantStat(match.Stat);
 
+        // Synthesised implicits are random and are what the item is bought for.
+        if (type == ModType.Implicit && item.Synthesised)
+            return true;
+
+        // Implicits from a Vaal orb are rare and priced by which one it got.
+        if (type == ModType.Implicit && match.Source.Any(m => m.FromCorruption))
+            return true;
+
         // Uniques are searched by name; only the mods that tell variants apart are ticked:
         // - choice stats and variant counts (Forbidden notable, Voices sockets, Thread of Hope ring)
         // - any fixed-text mod without "#", e.g. Megalomaniac's "1 Added Passive Skill is Pure Agony".
         //   Fixed mods every copy has (Headhunter's "gain its Modifiers") are ticked too; they match all
         //   listings, so they don't narrow the result.
+        // - the mutated mod of a Foulborn unique (when the advanced copy marks it)
         if (item.Rarity == ItemRarity.Unique)
-            return IsVariantStat(match.Stat) || !match.Stat.Text.Contains('#');
+            return IsVariantStat(match.Stat) || !match.Stat.Text.Contains('#') || match.Source.Any(m => m.Mutated);
 
         // Rare/magic: the item's own rolled mods. Crafted mods stay off (buyers can bench-craft them).
         return type is ModType.Explicit or ModType.Fractured;

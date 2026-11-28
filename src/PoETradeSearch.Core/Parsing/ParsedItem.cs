@@ -37,6 +37,12 @@ public sealed record ItemMod(string Text, string Template, IReadOnlyList<double>
     /// text came from a normal copy.
     /// </summary>
     public IReadOnlyList<ValueRange?>? Ranges { get; init; }
+
+    /// <summary>The mutated mod of a Foulborn unique, when the advanced copy's header marks it.</summary>
+    public bool Mutated { get; init; }
+
+    /// <summary>An implicit added by corruption (Vaal orb), when the advanced copy's header says so.</summary>
+    public bool FromCorruption { get; init; }
 }
 
 public readonly record struct ValueRange(double Min, double Max);
@@ -66,6 +72,9 @@ public sealed class ParsedItem
     public bool Mirrored { get; set; }
     public bool Synthesised { get; set; }
     public bool Split { get; set; }
+
+    /// <summary>Foulborn (삿된) unique: one mod is replaced by a mutated mod. <see cref="Name"/> has the prefix removed.</summary>
+    public bool Foulborn { get; set; }
 
     /// <summary>"Fractured Item" line: at least one mod is fractured and can't be changed.</summary>
     public bool FracturedItem { get; set; }

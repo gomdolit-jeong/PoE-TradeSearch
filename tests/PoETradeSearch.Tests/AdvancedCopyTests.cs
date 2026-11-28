@@ -170,6 +170,91 @@ public class AdvancedCopyTests
     }
 
     [Fact]
+    public void Synthesised_unique_implicits_come_from_headers()
+    {
+        var item = ItemTextParser.Parse("""
+            아이템 종류: 반지
+            아이템 희귀도: 고유
+            유죄의 고리
+            결합된 철제 반지
+            --------
+            아이템 레벨: 83
+            --------
+            { 고정 속성 부여 — 피해, 원소, 화염 }
+            화염 피해 15(15-16)% 증가
+            { 고정 속성 부여 — 피해, 카오스 }
+            카오스 피해 12(11-12)% 증가
+            --------
+            { 고유 속성 부여 — 능력치 }
+            모든 능력치 +18(10-20)
+            ("능력치"는 힘, 민첩, 지능입니다)
+            { 고유 속성 부여 — 방어력, 방어도 }
+            방어도 +385(350-400)
+            --------
+            결합된 아이템
+            """);
+
+        Assert.Equal("철제 반지", item.BaseType);
+        Assert.True(item.Synthesised);
+        Assert.Equal([ModType.Implicit, ModType.Implicit, ModType.Explicit, ModType.Explicit], item.Mods.Select(m => m.Type));
+
+        var matcher = new StatMatcher(
+        [
+            new("implicit.stat_3962278098", "화염 피해 #% 증가", "implicit"),
+            new("implicit.stat_736967255", "카오스 피해 #% 증가", "implicit"),
+            new("explicit.stat_1379411836", "모든 능력치 +#", "explicit"),
+            new("explicit.stat_3484657501", "방어도 +#", "explicit"),
+        ]);
+        var matches = matcher.Match(item);
+        Assert.Equal(["implicit.stat_3962278098", "implicit.stat_736967255", "explicit.stat_1379411836", "explicit.stat_3484657501"],
+                     matches.Select(m => m.Stat!.Id));
+        Assert.Equal([true, true, false, false], matches.Select(m => ModDefaults.EnabledByDefault(item, m)));
+
+        var query = TradeQueryBuilder.Build(TradeQueryOptions.DefaultsFor(item))["query"]!;
+        Assert.Equal("철제 반지", query["type"]!.GetValue<string>());
+        Assert.Equal("true", query["filters"]!["misc_filters"]!["filters"]!["synthesised_item"]!["option"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Corrupted_implicit_is_marked_and_ticked()
+    {
+        var item = ItemTextParser.Parse("""
+            아이템 종류: 방패
+            아이템 희귀도: 고유
+            공포의 성배
+            전쟁용 버클러
+            --------
+            아이템 레벨: 83
+            --------
+            { 타락 고정 속성 부여 — 피해, 치명타 }
+            치명타로 받는 추가 피해 20(20-30)% 감소
+            --------
+            { 고유 속성 부여 — 방어력, 회피 }
+            회피 36(30-50)% 증가
+            { 고유 속성 부여 }
+            막아낼 시 100%의 확률로 몬스터가 도망침
+            (마법 몬스터가 50% 확률로 도망을 피합니다. 희귀 및 고유 몬스터는 도망칠 수 없습니다.)
+            --------
+            타락
+            """);
+
+        Assert.True(item.Corrupted);
+        Assert.Equal(3, item.Mods.Count); // reminder text skipped
+        Assert.Equal(ModType.Implicit, item.Mods[0].Type);
+        Assert.True(item.Mods[0].FromCorruption);
+        Assert.False(item.Mods[1].FromCorruption);
+
+        var matcher = new StatMatcher(
+        [
+            new("implicit.stat_3442976749", "치명타로 받는 추가 피해 #% 감소", "implicit"),
+            new("explicit.stat_124859000", "회피 #% 증가", "explicit"),
+        ]);
+        var matches = matcher.Match(item);
+        Assert.True(ModDefaults.EnabledByDefault(item, matches[0]));
+        Assert.False(ModDefaults.EnabledByDefault(item, matches[1]));
+    }
+
+    [Fact]
     public void Full_kakao_stats_give_ranges_for_the_axe()
     {
         var path = Environment.GetEnvironmentVariable("POE_KAKAO_STATS_JSON");

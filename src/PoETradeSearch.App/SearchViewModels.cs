@@ -65,7 +65,8 @@ public sealed class ModFilterRow : Observable
 
     public string Tag => Match.Source[0].Type switch
     {
-        ModType.Implicit => "내재",
+        ModType.Implicit when Match.Source[0].FromCorruption => "타락 고정",
+        ModType.Implicit => "고정",
         ModType.Crafted => "제작",
         ModType.Fractured => "분열",
         ModType.Enchant => "인챈트",
@@ -75,6 +76,12 @@ public sealed class ModFilterRow : Observable
     };
 
     public bool HasTag => Tag.Length > 0;
+
+    /// <summary>Fixed mods (enchants, implicits) come first; the item's own mods are a separate group.</summary>
+    public bool IsFixedMod => Match.Source[0].Type is ModType.Implicit or ModType.Enchant;
+
+    /// <summary>Set by the window: draw a line above this row because the group changes here.</summary>
+    public bool StartsNewGroup { get; set; }
 
     public Brush TextColor => Match.Source[0].Type switch
     {
@@ -202,6 +209,20 @@ public sealed class ListingView
     }
 
     public bool IsCorrupted => Listing.Corrupted;
+
+    /// <summary>Gems: "20레벨 · 20%" (and "타락") in the result line itself.</summary>
+    public string GemInfo
+    {
+        get
+        {
+            if (Listing.GemLevel is null || Listing.ItemLevel is > 0)
+                return "";
+            var parts = new List<string> { $"{Listing.GemLevel}레벨" };
+            parts.Add($"퀄 {Listing.Quality ?? 0}%");
+            if (Listing.Corrupted) parts.Add("타락");
+            return string.Join(" · ", parts);
+        }
+    }
 
     public string SellerName => Listing.CharacterName ?? Listing.AccountName ?? "알 수 없음";
     public Brush OnlineColor => Listing.SellerOnline ? Palette.Online : Palette.TextFaint;

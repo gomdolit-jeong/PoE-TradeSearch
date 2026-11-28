@@ -51,6 +51,12 @@ public sealed class TradeQueryOptions
     public bool SearingExarch { get; set; }
     public bool EaterOfWorlds { get; set; }
 
+    /// <summary>
+    /// Foulborn (삿된) uniques: true = Foulborn only, false = normal only, null = either. A Foulborn copy lacks
+    /// one normal mod, so the two versions are priced apart.
+    /// </summary>
+    public bool? Foulborn { get; set; }
+
     /// <summary>Required influences ("shaper", "elder", ...). Each one must be present on the listing.</summary>
     public List<string> Influences { get; } = [];
 
@@ -69,6 +75,9 @@ public sealed class TradeQueryOptions
 
     /// <summary>For transfigured gems: the base gem and discriminator (see <see cref="GemCatalog"/>).</summary>
     public GemCatalog.GemType? TransfiguredGem { get; set; }
+
+    /// <summary>false = cheapest first (default), true = most recently listed first.</summary>
+    public bool NewestFirst { get; set; }
 
     /// <summary>
     /// Sensible defaults for an item: keep properties that change the price a lot
@@ -90,6 +99,7 @@ public sealed class TradeQueryOptions
             // White sockets are rare and valuable (e.g. Dialla's Malefaction), so they are kept by default.
             SocketColours = item.SocketsOfColour('W') > 0 ? new SocketColours(null, null, null, item.SocketsOfColour('W')) : default,
             Corrupted = item.Rarity is ItemRarity.Unique or ItemRarity.Gem ? item.Corrupted : null,
+            Foulborn = item.Rarity == ItemRarity.Unique && !item.Unidentified ? item.Foulborn : null,
             ItemLevelMin = ModDefaults.ClusterItemLevelMin(item),
             GemLevelMin = gem ? item.GemLevel : null,
             QualityMin = gem && item.Quality > 0 ? item.Quality : null,
@@ -163,6 +173,7 @@ public static class TradeQueryBuilder
         if (options.Synthesised) miscFilters["synthesised_item"] = Option(true);
         if (options.SearingExarch) miscFilters["searing_item"] = Option(true);
         if (options.EaterOfWorlds) miscFilters["tangled_item"] = Option(true);
+        if (options.Foulborn is { } foulborn) miscFilters["mutated"] = Option(foulborn);
         if (miscFilters.Count > 0)
             filters["misc_filters"] = new JsonObject { ["filters"] = miscFilters };
 
@@ -203,7 +214,9 @@ public static class TradeQueryBuilder
         return new JsonObject
         {
             ["query"] = query,
-            ["sort"] = new JsonObject { ["price"] = "asc" },
+            ["sort"] = options.NewestFirst
+                ? new JsonObject { ["indexed"] = "desc" }
+                : new JsonObject { ["price"] = "asc" },
         };
     }
 
