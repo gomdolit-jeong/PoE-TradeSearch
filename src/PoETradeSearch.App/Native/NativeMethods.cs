@@ -98,6 +98,28 @@ internal static partial class NativeMethods
         }
     }
 
+    private const int GWL_EXSTYLE = -20;
+    private const long WS_EX_TRANSPARENT = 0x00000020;
+    private const long WS_EX_TOOLWINDOW = 0x00000080;
+    private const long WS_EX_NOACTIVATE = 0x08000000;
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static partial IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    private static partial IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    /// <summary>
+    /// On: mouse clicks pass through the window to the game. The window never takes focus and isn't listed in
+    /// Alt+Tab either way. Off is used while the user drags it to a new place.
+    /// </summary>
+    public static void SetClickThrough(IntPtr hwnd, bool on)
+    {
+        long style = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64() | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+        style = on ? style | WS_EX_TRANSPARENT : style & ~WS_EX_TRANSPARENT;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(style));
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
     {

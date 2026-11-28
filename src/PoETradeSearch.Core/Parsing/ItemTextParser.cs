@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using PoETradeSearch.Core.Data;
 
 namespace PoETradeSearch.Core.Parsing;
 
@@ -31,15 +32,6 @@ public static partial class ItemTextParser
     [GeneratedRegex(@"^(?<key>[^:]+):\s*(?<value>.*)$")]
     private static partial Regex KeyValueRegex();
 
-    [GeneratedRegex(@"Foulborn|Mutated|삿된|변이")]
-    private static partial Regex MutatedHeaderRegex();
-
-    [GeneratedRegex(@"Implicit Modifier|고정 속성")]
-    private static partial Regex ImplicitHeaderRegex();
-
-    /// <summary>"{ 타락 고정 속성 부여 — ... }" / "{ Corrupted Implicit Modifier — ... }"</summary>
-    [GeneratedRegex(@"Corrupted|타락")]
-    private static partial Regex CorruptedHeaderRegex();
 
     public static bool LooksLikeItem(string? text) =>
         !string.IsNullOrWhiteSpace(text) &&
@@ -63,6 +55,9 @@ public static partial class ItemTextParser
         bool pastItemLevel = false;
         // Set after the first section with explicit mods; on uniques, later sections may be flavour text.
         bool explicitSectionSeen = false;
+        // Item-class rules from game-data.json (viscera: one mod section, every mod is an implicit).
+        var rule = GameData.Current.ClassRule(item.ItemClass);
+        int modSections = 0;
 
         for (int i = 1; i < sections.Count; i++)
         {
@@ -83,8 +78,12 @@ public static partial class ItemTextParser
                 continue;
             }
 
+            if (rule?.MaxModSections is { } max && modSections >= max)
+                continue; // e.g. the flavour text of "마녀단 여왕의 왕관"
+
             if (IsModSection(section, item, strings, explicitSectionSeen))
             {
+                modSections++;
                 bool hasExplicit = false;
                 bool mutatedHeader = false;
                 bool implicitHeader = false;
@@ -96,9 +95,10 @@ public static partial class ItemTextParser
                     // the only sign. A Foulborn header marks the mutated mod.
                     if (line.StartsWith('{'))
                     {
-                        mutatedHeader = MutatedHeaderRegex().IsMatch(line);
-                        implicitHeader = ImplicitHeaderRegex().IsMatch(line);
-                        corruptedHeader = implicitHeader && CorruptedHeaderRegex().IsMatch(line);
+                        var headers = GameData.Current.ModHeaders;
+                        mutatedHeader = GameData.ContainsAny(line, headers.Mutated);
+                        implicitHeader = GameData.ContainsAny(line, headers.Implicit);
+                        corruptedHeader = implicitHeader && GameData.ContainsAny(line, headers.Corrupted);
                         continue;
                     }
                     // Reminder text under a mod: ("능력치"는 힘, 민첩, 지능입니다), (Attributes are Strength, ...)
@@ -107,7 +107,8 @@ public static partial class ItemTextParser
                     var mod = ParseModLine(line);
                     if (mod is null)
                         continue;
-                    if (implicitHeader && mod.Type == ModType.Explicit)
+                    // A normal copy (Ctrl+C) of viscera has no "(implicit)" marker, but all its mods are implicits.
+                    if ((implicitHeader || rule?.ModsAreImplicit == true) && mod.Type == ModType.Explicit)
                         mod = mod with { Type = ModType.Implicit };
                     if (corruptedHeader)
                         mod = mod with { FromCorruption = true };
@@ -211,10 +212,10 @@ public static partial class ItemTextParser
         {
             item.Name = nameLines[0];
             // "삿된 뒤틀린 시계" is a Foulborn "뒤틀린 시계": the trade site wants the plain name plus a Foulborn filter.
-            if (item.Rarity == ItemRarity.Unique && item.Name.StartsWith(strings.FoulbornPrefix, StringComparison.Ordinal))
+            if (item.Rarity == ItemRarity.Unique && GameData.StripPrefix(item.Name, GameData.Current.NamePrefixes.Foulborn) is { } plain)
             {
                 item.Foulborn = true;
-                item.Name = item.Name[strings.FoulbornPrefix.Length..];
+                item.Name = plain;
             }
             item.BaseType = nameLines[1];
         }
@@ -225,38 +226,41 @@ public static partial class ItemTextParser
 
         // "결합된 철제 반지" / "Synthesised Iron Ring": the trade site knows the base as "철제 반지" and
         // searches synthesised items with a separate filter.
-        if (item.BaseType is { } baseType && baseType.StartsWith(strings.SynthesisedPrefix, StringComparison.Ordinal))
+        if (item.BaseType is { } baseType && GameData.StripPrefix(baseType, GameData.Current.NamePrefixes.Synthesised) is { } plainBase)
         {
-            item.BaseType = baseType[strings.SynthesisedPrefix.Length..];
+            item.BaseType = plainBase;
             item.Synthesised = true;
+        }
+
+        // Item classes with their own rules in game-data.json "itemClassRules", e.g. viscera (살덩이):
+        // "상위 그을린 다리" is searched as "그을린 다리" (the trade site's base covers every tier).
+        if (GameData.Current.ClassRule(item.ItemClass) is { } rule)
+        {
+            if (item.BaseType is { } tiered && GameData.StripPrefix(tiered, rule.BasePrefixes) is { } untiered)
+            {
+                item.DisplayBaseType = tiered;
+                item.BaseType = untiered;
+            }
+            // Items like viscera have no rarity line.
+            if (item.Rarity == ItemRarity.Unknown && rule.Rarity is { } rarity && Enum.TryParse<ItemRarity>(rarity, true, out var r))
+                item.Rarity = r;
         }
     }
 
     /// <summary>Sections that only contain flag words like "Corrupted" or "Shaper Item".</summary>
     private static bool TryParseFlagSection(List<string> section, ParsedItem item, ClientStrings strings)
     {
-        bool allFlags = section.All(l => strings.Flags.ContainsKey(l) || strings.Influences.ContainsKey(l));
+        var data = GameData.Current;
+        bool allFlags = section.All(l => data.FlagByText(l) is not null || data.InfluenceByText(l) is not null);
         if (!allFlags)
             return false;
 
         foreach (var line in section)
         {
-            if (strings.Influences.TryGetValue(line, out var influence))
-            {
-                item.Influences.Add(influence);
-                continue;
-            }
-            switch (strings.Flags[line])
-            {
-                case ItemFlag.Corrupted: item.Corrupted = true; break;
-                case ItemFlag.Unidentified: item.Unidentified = true; break;
-                case ItemFlag.Mirrored: item.Mirrored = true; break;
-                case ItemFlag.Split: item.Split = true; break;
-                case ItemFlag.Synthesised: item.Synthesised = true; break;
-                case ItemFlag.Fractured: item.FracturedItem = true; break;
-                case ItemFlag.SearingExarch: item.SearingExarch = true; break;
-                case ItemFlag.EaterOfWorlds: item.EaterOfWorlds = true; break;
-            }
+            if (data.InfluenceByText(line) is { } influence)
+                item.Influences.Add(influence.Id);
+            else
+                item.Flags.Add(data.FlagByText(line)!.Id);
         }
         return true;
     }
@@ -301,7 +305,7 @@ public static partial class ItemTextParser
     {
         if (section.Any(l => l.StartsWith(strings.Note, StringComparison.Ordinal)))
             return false;
-        if (section.Any(l => strings.UsageHints.Any(h => l.StartsWith(h, StringComparison.Ordinal))))
+        if (section.Any(l => GameData.Current.UsageHints.Any(h => l.StartsWith(h, StringComparison.Ordinal))))
             return false;
 
         // Only uniques have flavour text, so for other rarities every remaining section is mods.

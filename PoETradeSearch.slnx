@@ -6,4 +6,16 @@
   <Folder Name="/tests/">
     <Project Path="tests/PoETradeSearch.Tests/PoETradeSearch.Tests.csproj" />
   </Folder>
+  <!-- League data: edit this when a league adds new item flags, prefixes or item classes -->
+  <Folder Name="/data/">
+    <File Path="src/PoETradeSearch.Core/Data/game-data.json" />
+  </Folder>
+  <Folder Name="/build/">
+    <File Path=".github/workflows/release.yml" />
+    <File Path="tools/make-icon.ps1" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="README.md" />
+    <File Path=".gitignore" />
+  </Folder>
 </Solution>

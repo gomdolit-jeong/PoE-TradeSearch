@@ -1,3 +1,4 @@
+using PoETradeSearch.Core.Data;
 using System.Text.Json.Nodes;
 using PoETradeSearch.Core.Parsing;
 
@@ -46,10 +47,22 @@ public sealed class TradeQueryOptions
     /// <summary>null = any, true = corrupted only, false = not corrupted.</summary>
     public bool? Corrupted { get; set; }
 
-    public bool FracturedItem { get; set; }
-    public bool Synthesised { get; set; }
-    public bool SearingExarch { get; set; }
-    public bool EaterOfWorlds { get; set; }
+    /// <summary>
+    /// Item flags the listing must have ("fractured", "synthesised", ...). Each is sent as its trade filter
+    /// from game-data.json ("fractured" → misc_filters.fractured_item = true).
+    /// </summary>
+    public HashSet<string> RequiredFlags { get; } = [];
+
+    public bool FracturedItem { get => RequiredFlags.Contains(FlagIds.Fractured); set => SetFlag(FlagIds.Fractured, value); }
+    public bool Synthesised { get => RequiredFlags.Contains(FlagIds.Synthesised); set => SetFlag(FlagIds.Synthesised, value); }
+    public bool SearingExarch { get => RequiredFlags.Contains(FlagIds.Searing); set => SetFlag(FlagIds.Searing, value); }
+    public bool EaterOfWorlds { get => RequiredFlags.Contains(FlagIds.Tangled); set => SetFlag(FlagIds.Tangled, value); }
+
+    private void SetFlag(string id, bool on)
+    {
+        if (on) RequiredFlags.Add(id);
+        else RequiredFlags.Remove(id);
+    }
 
     /// <summary>
     /// Foulborn (삿된) uniques: true = Foulborn only, false = normal only, null = either. A Foulborn copy lacks
@@ -91,10 +104,6 @@ public sealed class TradeQueryOptions
         {
             Item = item,
             UseBaseType = item.Rarity is not (ItemRarity.Rare or ItemRarity.Magic),
-            FracturedItem = item.FracturedItem,
-            Synthesised = item.Synthesised,
-            SearingExarch = item.SearingExarch,
-            EaterOfWorlds = item.EaterOfWorlds,
             LinksMin = item.MaxLinks >= 5 ? item.MaxLinks : null,
             // White sockets are rare and valuable (e.g. Dialla's Malefaction), so they are kept by default.
             SocketColours = item.SocketsOfColour('W') > 0 ? new SocketColours(null, null, null, item.SocketsOfColour('W')) : default,
@@ -106,6 +115,10 @@ public sealed class TradeQueryOptions
             TransfiguredGem = gem ? gems?.FindTransfigured(item.BaseType) : null,
         };
         options.Influences.AddRange(item.Influences);
+        // Every flag with a trade filter (fractured, synthesised, Exarch, Eater, new league ones) is kept by default.
+        foreach (var flag in GameData.Current.SearchableFlags)
+            if (item.HasFlag(flag.Id))
+                options.RequiredFlags.Add(flag.Id);
         return options;
     }
 }
@@ -169,10 +182,9 @@ public static class TradeQueryBuilder
             miscFilters["quality"] = quality;
         if (options.Corrupted is { } corrupted)
             miscFilters["corrupted"] = Option(corrupted);
-        if (options.FracturedItem) miscFilters["fractured_item"] = Option(true);
-        if (options.Synthesised) miscFilters["synthesised_item"] = Option(true);
-        if (options.SearingExarch) miscFilters["searing_item"] = Option(true);
-        if (options.EaterOfWorlds) miscFilters["tangled_item"] = Option(true);
+        foreach (var id in options.RequiredFlags)
+            if (GameData.Current.Flag(id)?.TradeFilter is { } tradeFilter)
+                miscFilters[tradeFilter] = Option(true);
         if (options.Foulborn is { } foulborn) miscFilters["mutated"] = Option(foulborn);
         if (miscFilters.Count > 0)
             filters["misc_filters"] = new JsonObject { ["filters"] = miscFilters };

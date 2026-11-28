@@ -23,6 +23,13 @@ public sealed class AppSettings
     /// <summary>Close this app once the game process it saw has exited.</summary>
     public bool ExitWithGame { get; set; } = true;
 
+    /// <summary>Small "running" badge at the top of the screen.</summary>
+    public bool ShowOverlay { get; set; } = true;
+
+    /// <summary>Where the badge was dragged to (screen units); null = top centre.</summary>
+    public double? OverlayLeft { get; set; }
+    public double? OverlayTop { get; set; }
+
     /// <summary>Window and text scale: 1.0 = 100%. For large or high-resolution screens (e.g. 2560 wide).</summary>
     public double UiScale { get; set; } = 1.0;
 

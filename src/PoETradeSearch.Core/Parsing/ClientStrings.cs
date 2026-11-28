@@ -7,7 +7,9 @@ public enum ClientLanguage
 }
 
 /// <summary>
-/// The fixed words the game client puts into copied item text, per language.
+/// The fixed words of the copied item text's layout, per language: header keys and rarities. These don't
+/// change between leagues. Item flags, influences and name prefixes, which do, are in Data/game-data.json
+/// (<see cref="Data.GameData"/>).
 /// Korean strings follow the Kakao client (source: Awakened PoE Trade's ko/client_strings.js, MIT).
 /// Mod markers like "(implicit)" and "(augmented)" stay in English in every client.
 /// </summary>
@@ -22,14 +24,7 @@ public sealed class ClientStrings
     public required string StackSize { get; init; }
     public required string GemLevel { get; init; }
     public required string Note { get; init; }
-    /// <summary>Name prefix of Foulborn uniques (one mod replaced by a mutated mod): "Foulborn Warped Timepiece".</summary>
-    public required string FoulbornPrefix { get; init; }
-    /// <summary>Base type prefix of synthesised items: "Synthesised Iron Ring".</summary>
-    public required string SynthesisedPrefix { get; init; }
     public required IReadOnlyDictionary<string, ItemRarity> Rarities { get; init; }
-    public required IReadOnlyDictionary<string, ItemFlag> Flags { get; init; }
-    public required IReadOnlyDictionary<string, string> Influences { get; init; }
-    public required IReadOnlyList<string> UsageHints { get; init; }
 
     public static readonly ClientStrings English = new()
     {
@@ -42,8 +37,6 @@ public sealed class ClientStrings
         StackSize = "Stack Size",
         GemLevel = "Level",
         Note = "Note:",
-        FoulbornPrefix = "Foulborn ",
-        SynthesisedPrefix = "Synthesised ",
         Rarities = new Dictionary<string, ItemRarity>
         {
             ["Normal"] = ItemRarity.Normal,
@@ -54,28 +47,6 @@ public sealed class ClientStrings
             ["Currency"] = ItemRarity.Currency,
             ["Divination Card"] = ItemRarity.DivinationCard,
         },
-        Flags = new Dictionary<string, ItemFlag>
-        {
-            ["Corrupted"] = ItemFlag.Corrupted,
-            ["Twice Corrupted"] = ItemFlag.Corrupted,
-            ["Unidentified"] = ItemFlag.Unidentified,
-            ["Mirrored"] = ItemFlag.Mirrored,
-            ["Split"] = ItemFlag.Split,
-            ["Synthesised Item"] = ItemFlag.Synthesised,
-            ["Fractured Item"] = ItemFlag.Fractured,
-            ["Searing Exarch Item"] = ItemFlag.SearingExarch,
-            ["Eater of Worlds Item"] = ItemFlag.EaterOfWorlds,
-        },
-        Influences = new Dictionary<string, string>
-        {
-            ["Shaper Item"] = "shaper",
-            ["Elder Item"] = "elder",
-            ["Crusader Item"] = "crusader",
-            ["Hunter Item"] = "hunter",
-            ["Redeemer Item"] = "redeemer",
-            ["Warlord Item"] = "warlord",
-        },
-        UsageHints = ["Place into", "Right click"],
     };
 
     public static readonly ClientStrings Korean = new()
@@ -89,8 +60,6 @@ public sealed class ClientStrings
         StackSize = "중첩 개수",
         GemLevel = "레벨",
         Note = "메모:",
-        FoulbornPrefix = "삿된 ",
-        SynthesisedPrefix = "결합된 ",
         Rarities = new Dictionary<string, ItemRarity>
         {
             ["일반"] = ItemRarity.Normal,
@@ -101,29 +70,6 @@ public sealed class ClientStrings
             ["화폐"] = ItemRarity.Currency,
             ["점술 카드"] = ItemRarity.DivinationCard,
         },
-        Flags = new Dictionary<string, ItemFlag>
-        {
-            ["타락"] = ItemFlag.Corrupted,
-            ["두 번 타락"] = ItemFlag.Corrupted,
-            ["미확인"] = ItemFlag.Unidentified,
-            ["복제"] = ItemFlag.Mirrored,
-            ["분할됨"] = ItemFlag.Split,
-            ["결합된 아이템"] = ItemFlag.Synthesised,
-            // Not in the reference strings; the "(fractured)" mod marker sets the flag as well.
-            ["분열된 아이템"] = ItemFlag.Fractured,
-            ["작열의 총주교 아이템"] = ItemFlag.SearingExarch,
-            ["세계 포식자 아이템"] = ItemFlag.EaterOfWorlds,
-        },
-        Influences = new Dictionary<string, string>
-        {
-            ["쉐이퍼 아이템"] = "shaper",
-            ["엘더 아이템"] = "elder",
-            ["십자군 아이템"] = "crusader",
-            ["사냥꾼 아이템"] = "hunter",
-            ["대속자 아이템"] = "redeemer",
-            ["전쟁군주 아이템"] = "warlord",
-        },
-        UsageHints = [],
     };
 
     public static IReadOnlyList<ClientStrings> All { get; } = [English, Korean];
@@ -136,16 +82,4 @@ public sealed class ClientStrings
                 return s;
         return null;
     }
-}
-
-public enum ItemFlag
-{
-    Corrupted,
-    Unidentified,
-    Mirrored,
-    Split,
-    Synthesised,
-    Fractured,
-    SearingExarch,
-    EaterOfWorlds,
 }

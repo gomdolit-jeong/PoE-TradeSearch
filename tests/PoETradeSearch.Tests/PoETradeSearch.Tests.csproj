@@ -1,7 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net11.0</TargetFramework>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <!-- References the WPF app to test its view models. -->
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -16,6 +18,9 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <!-- WPF projects leave these out of the implicit usings. -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PoETradeSearch.Core\PoETradeSearch.Core.csproj" />
+    <ProjectReference Include="..\..\src\PoETradeSearch.App\PoETradeSearch.App.csproj" />
   </ItemGroup>
 
 </Project>

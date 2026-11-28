@@ -12,7 +12,7 @@ public sealed record League(string Id, string Text)
 }
 
 /// <summary>Client for one PoE1 trade site (global or Kakao). Each server has its own rate limits.</summary>
-public sealed class TradeApiClient(HttpClient http, RateLimiter limiter, TradeServer server)
+public sealed class TradeApiClient(HttpClient http, RateLimiter limiter, TradeServer server) : ITradeSearchApi
 {
     /// <summary>The fetch endpoint accepts at most 10 result IDs per request.</summary>
     public const int FetchBatchSize = 10;

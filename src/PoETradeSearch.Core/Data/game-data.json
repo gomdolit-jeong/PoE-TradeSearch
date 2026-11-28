@@ -1,0 +1,141 @@
+{
+  "_설명": "시즌마다 바뀔 수 있는 게임 용어와 거래소 필터 정의. 프로그램에 내장된 기본값이며, %LOCALAPPDATA%\\PoETradeSearch\\game-data.json 이 있으면 그 파일을 대신 씁니다. 항목을 추가하면 코드 수정 없이 파서와 검색 창, 거래소 쿼리에 반영됩니다.",
+
+  "_itemFlags": "아이템 아래쪽에 한 줄로 붙는 표시. text = 게임이 복사하는 글자(영문, 한글 모두), tradeFilter = 거래소 '기타' 필터 id(있으면 검색 창에 칩으로 나오고 기본으로 켜짐), label = 칩 이름",
+  "itemFlags": [
+    { "id": "corrupted", "text": ["Corrupted", "Twice Corrupted", "타락", "두 번 타락"] },
+    { "id": "unidentified", "text": ["Unidentified", "미확인"] },
+    { "id": "mirrored", "text": ["Mirrored", "복제"] },
+    { "id": "split", "text": ["Split", "분할됨"] },
+    { "id": "fractured", "text": ["Fractured Item", "분열된 아이템"], "tradeFilter": "fractured_item", "label": "분열된 아이템만",
+      "tooltip": "켜면 분열 아이템만, 끄면 같은 옵션이 붙은 일반 아이템도 찾습니다" },
+    { "id": "synthesised", "text": ["Synthesised Item", "결합된 아이템"], "tradeFilter": "synthesised_item", "label": "결합된 아이템" },
+    { "id": "searing", "text": ["Searing Exarch Item", "작열의 총주교 아이템"], "tradeFilter": "searing_item", "label": "작열의 총주교" },
+    { "id": "tangled", "text": ["Eater of Worlds Item", "세계 포식자 아이템"], "tradeFilter": "tangled_item", "label": "세계 포식자" }
+  ],
+
+  "_influences": "영향력. 거래소에서는 pseudo.pseudo_has_{id}_influence 로 검색합니다.",
+  "influences": [
+    { "id": "shaper", "text": ["Shaper Item", "쉐이퍼 아이템"], "label": "쉐이퍼" },
+    { "id": "elder", "text": ["Elder Item", "엘더 아이템"], "label": "엘더" },
+    { "id": "crusader", "text": ["Crusader Item", "십자군 아이템"], "label": "십자군" },
+    { "id": "hunter", "text": ["Hunter Item", "사냥꾼 아이템"], "label": "사냥꾼" },
+    { "id": "redeemer", "text": ["Redeemer Item", "대속자 아이템"], "label": "대속자" },
+    { "id": "warlord", "text": ["Warlord Item", "전쟁군주 아이템"], "label": "전쟁군주" }
+  ],
+
+  "_namePrefixes": "이름 앞에 붙는 말. foulborn = 삿된 고유(거래소 '삿된 아이템' 필터), synthesised = 결합된 베이스",
+  "namePrefixes": {
+    "foulborn": ["Foulborn ", "삿된 "],
+    "synthesised": ["Synthesised ", "결합된 "]
+  },
+
+  "_modHeaders": "상세 복사(Ctrl+Alt+C)의 { ... } 줄에서 찾는 말",
+  "modHeaders": {
+    "implicit": ["Implicit Modifier", "고정 속성"],
+    "corrupted": ["Corrupted", "타락"],
+    "mutated": ["Foulborn", "Mutated", "삿된", "변이"]
+  },
+
+  "_variantStats": "정확한 값으로 검색하는 변종 개수 옵션(스킬 군 주얼 패시브 수, 목소리 홈 수 등)",
+  "variantStats": ["stat_3086156145", "stat_4079888060", "stat_247746531", "stat_1085446536"],
+
+  "_clusterItemLevelSteps": "스킬 군 주얼 아이템 레벨 구간. 83이면 75 이상으로 검색",
+  "clusterItemLevelSteps": [84, 75, 68, 50],
+
+  "_currencyNames": "결과에 보여줄 화폐 짧은 이름. 없으면 거래소 이름을 씁니다",
+  "currencyNames": {
+    "chaos": "카오스",
+    "divine": "디바인",
+    "exalted": "엑잘티드",
+    "mirror": "미러"
+  },
+
+  "_itemClassRules": "아이템 종류별 규칙. basePrefixes = 거래소에 없는 이름 앞말(검색할 때 뗌), rarity = 희귀도 줄이 없을 때 쓸 값, checkImplicits = 고정 옵션을 기본으로 체크, modsAreImplicit = 표시가 없어도 옵션을 고정 옵션으로 읽음, maxModSections = 아이템 레벨 뒤 옵션 구역 수(그 뒤는 설명 글)",
+  "itemClassRules": [
+    { "itemClass": ["Viscera", "살덩이"], "basePrefixes": ["Greater ", "Lesser ", "상위 ", "하위 "], "rarity": "Normal",
+      "checkImplicits": true, "modsAreImplicit": true, "maxModSections": 1 }
+  ],
+
+  "_usageHints": "아이템 사용 안내 문장의 시작. 이 문장이 있는 구역은 옵션이 아니라고 보고 건너뜁니다",
+  "usageHints": [
+    "Place into", "Right click", "Bring to", "Take this",
+    "아이템 홈에 장착하여", "우클릭", "마을이나 은신처에"
+  ],
+
+  "_itemCategories": "아이템 종류 줄 → 거래소 분류",
+  "itemCategories": {
+    "Rings": "accessory.ring",
+    "Amulets": "accessory.amulet",
+    "Belts": "accessory.belt",
+    "Trinkets": "accessory.trinket",
+    "Body Armours": "armour.chest",
+    "Helmets": "armour.helmet",
+    "Gloves": "armour.gloves",
+    "Boots": "armour.boots",
+    "Shields": "armour.shield",
+    "Quivers": "armour.quiver",
+    "Jewels": "jewel.base",
+    "Abyss Jewels": "jewel.abyss",
+    "Claws": "weapon.claw",
+    "Daggers": "weapon.basedagger",
+    "Rune Daggers": "weapon.runedagger",
+    "One Hand Swords": "weapon.basesword",
+    "Thrusting One Hand Swords": "weapon.rapier",
+    "One Hand Axes": "weapon.oneaxe",
+    "One Hand Maces": "weapon.basemace",
+    "Sceptres": "weapon.sceptre",
+    "Wands": "weapon.wand",
+    "Bows": "weapon.bow",
+    "Staves": "weapon.basestaff",
+    "Warstaves": "weapon.warstaff",
+    "Two Hand Swords": "weapon.twosword",
+    "Two Hand Axes": "weapon.twoaxe",
+    "Two Hand Maces": "weapon.twomace",
+    "Fishing Rods": "weapon.rod",
+    "Life Flasks": "flask",
+    "Mana Flasks": "flask",
+    "Hybrid Flasks": "flask",
+    "Utility Flasks": "flask",
+    "Maps": "map",
+    "Viscera": "viscera",
+
+    "반지": "accessory.ring",
+    "목걸이": "accessory.amulet",
+    "허리띠": "accessory.belt",
+    "장신구": "accessory.trinket",
+    "갑옷": "armour.chest",
+    "투구": "armour.helmet",
+    "장갑": "armour.gloves",
+    "장화": "armour.boots",
+    "방패": "armour.shield",
+    "화살통": "armour.quiver",
+    "주얼": "jewel.base",
+    "심연 주얼": "jewel.abyss",
+    "클로": "weapon.claw",
+    "단검": "weapon.basedagger",
+    "룬 단검": "weapon.runedagger",
+    "한손 검": "weapon.basesword",
+    "레이피어": "weapon.rapier",
+    "찌르기 한손 검": "weapon.rapier",
+    "한손 도끼": "weapon.oneaxe",
+    "한손 철퇴": "weapon.basemace",
+    "셉터": "weapon.sceptre",
+    "마법봉": "weapon.wand",
+    "활": "weapon.bow",
+    "지팡이": "weapon.basestaff",
+    "전쟁지팡이": "weapon.warstaff",
+    "양손검": "weapon.twosword",
+    "양손 검": "weapon.twosword",
+    "양손 도끼": "weapon.twoaxe",
+    "양손 철퇴": "weapon.twomace",
+    "낚싯대": "weapon.rod",
+    "생명력 플라스크": "flask",
+    "마나 플라스크": "flask",
+    "복합 플라스크": "flask",
+    "유틸리티 플라스크": "flask",
+    "플라스크": "flask",
+    "지도": "map",
+    "살덩이": "viscera"
+  }
+}

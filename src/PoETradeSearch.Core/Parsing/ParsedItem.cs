@@ -1,3 +1,5 @@
+using PoETradeSearch.Core.Data;
+
 namespace PoETradeSearch.Core.Parsing;
 
 public enum ItemRarity
@@ -61,26 +63,44 @@ public sealed class ParsedItem
     /// <summary>Base type, e.g. "Amethyst Ring". For magic items this is the full magic name.</summary>
     public string? BaseType { get; set; }
 
+    /// <summary>Base type as the game shows it, before trade-site clean-up ("상위 그을린 다리" → BaseType "그을린 다리").</summary>
+    public string? DisplayBaseType { get => _displayBaseType ?? BaseType; set => _displayBaseType = value; }
+    private string? _displayBaseType;
+
     public int? ItemLevel { get; set; }
     public int? Quality { get; set; }
     public int? GemLevel { get; set; }
     public string? Sockets { get; set; }
     public int? StackSize { get; set; }
 
-    public bool Corrupted { get; set; }
-    public bool Unidentified { get; set; }
-    public bool Mirrored { get; set; }
-    public bool Synthesised { get; set; }
-    public bool Split { get; set; }
+    /// <summary>
+    /// Ids of the flag lines under the item ("corrupted", "fractured", ...; see game-data.json "itemFlags").
+    /// New league flags show up here without code changes.
+    /// </summary>
+    public HashSet<string> Flags { get; } = [];
+
+    public bool Corrupted { get => HasFlag(FlagIds.Corrupted); set => SetFlag(FlagIds.Corrupted, value); }
+    public bool Unidentified { get => HasFlag(FlagIds.Unidentified); set => SetFlag(FlagIds.Unidentified, value); }
+    public bool Mirrored { get => HasFlag(FlagIds.Mirrored); set => SetFlag(FlagIds.Mirrored, value); }
+    public bool Split { get => HasFlag(FlagIds.Split); set => SetFlag(FlagIds.Split, value); }
+    public bool Synthesised { get => HasFlag(FlagIds.Synthesised); set => SetFlag(FlagIds.Synthesised, value); }
+
+    /// <summary>"Fractured Item" line: at least one mod is fractured and can't be changed.</summary>
+    public bool FracturedItem { get => HasFlag(FlagIds.Fractured); set => SetFlag(FlagIds.Fractured, value); }
+
+    public bool SearingExarch { get => HasFlag(FlagIds.Searing); set => SetFlag(FlagIds.Searing, value); }
+    public bool EaterOfWorlds { get => HasFlag(FlagIds.Tangled); set => SetFlag(FlagIds.Tangled, value); }
+
+    public bool HasFlag(string id) => Flags.Contains(id);
+
+    public void SetFlag(string id, bool on)
+    {
+        if (on) Flags.Add(id);
+        else Flags.Remove(id);
+    }
 
     /// <summary>Foulborn (삿된) unique: one mod is replaced by a mutated mod. <see cref="Name"/> has the prefix removed.</summary>
     public bool Foulborn { get; set; }
-
-    /// <summary>"Fractured Item" line: at least one mod is fractured and can't be changed.</summary>
-    public bool FracturedItem { get; set; }
-
-    public bool SearingExarch { get; set; }
-    public bool EaterOfWorlds { get; set; }
 
     /// <summary>Shaper/Elder/Conqueror influences: "shaper", "elder", "crusader", "hunter", "redeemer", "warlord".</summary>
     public List<string> Influences { get; } = [];

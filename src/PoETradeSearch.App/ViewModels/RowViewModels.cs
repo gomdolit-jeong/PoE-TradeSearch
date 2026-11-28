@@ -1,62 +1,34 @@
-using System.ComponentModel;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
+using PoETradeSearch.Core.Data;
 using PoETradeSearch.Core.Parsing;
 using PoETradeSearch.Core.Trade;
 
-namespace PoETradeSearch.App;
-
-public abstract class Observable : INotifyPropertyChanged
-{
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    protected void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-            return;
-        field = value;
-        OnPropertyChanged(name);
-    }
-
-    protected void OnPropertyChanged(string? name) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-}
+namespace PoETradeSearch.App.ViewModels;
 
 /// <summary>One mod row in the search window: checkbox, text and min/max boxes.</summary>
-public sealed class ModFilterRow : Observable
+public sealed partial class ModFilterRow : ObservableObject
 {
-    private bool _enabled;
-    private string _minText = "";
-    private string _maxText = "";
-
     public required MatchedMod Match { get; init; }
 
     public bool IsMatched => Match.IsMatched;
     public string Text => Match.DisplayText;
 
-    private bool _searchAsFractured = true;
-
-    /// <summary>Fractured mods get their own on/off toggle in the row instead of a fixed tag.</summary>
-    public bool IsFracturedMod => Match.Source[0].Type == ModType.Fractured;
+    [ObservableProperty] private bool _enabled;
+    [ObservableProperty] private string _minText = "";
+    [ObservableProperty] private string _maxText = "";
 
     /// <summary>
     /// For a fractured mod: on = only listings where this mod is fractured; off = the same mod as a normal
     /// explicit, so items where it isn't fractured are found too.
     /// </summary>
-    public bool SearchAsFractured
-    {
-        get => _searchAsFractured;
-        set
-        {
-            if (!IsFracturedMod || _searchAsFractured == value)
-                return;
-            Set(ref _searchAsFractured, value);
-            OnPropertyChanged(nameof(FractureToggleText));
-            OnPropertyChanged(nameof(Hint));
-            OnPropertyChanged(nameof(HasHint));
-        }
-    }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FractureToggleText), nameof(Hint), nameof(HasHint))]
+    private bool _searchAsFractured = true;
+
+    /// <summary>Fractured mods get their own on/off toggle in the row instead of a fixed tag.</summary>
+    public bool IsFracturedMod => Match.Source[0].Type == ModType.Fractured;
 
     public string FractureToggleText => SearchAsFractured ? "분열" : "분열 X";
 
@@ -80,7 +52,7 @@ public sealed class ModFilterRow : Observable
     /// <summary>Fixed mods (enchants, implicits) come first; the item's own mods are a separate group.</summary>
     public bool IsFixedMod => Match.Source[0].Type is ModType.Implicit or ModType.Enchant;
 
-    /// <summary>Set by the window: draw a line above this row because the group changes here.</summary>
+    /// <summary>Draw a line above this row because the group changes here (set by the search view model).</summary>
     public bool StartsNewGroup { get; set; }
 
     public Brush TextColor => Match.Source[0].Type switch
@@ -93,7 +65,7 @@ public sealed class ModFilterRow : Observable
     /// <summary>Only stats with a "#" can take a min/max.</summary>
     public bool HasValue => Match.SearchValue is not null;
 
-    /// <summary>"Adds # to #" stats are searched by the average of the two numbers; this explains it.</summary>
+    /// <summary>Tier range, "Adds # to #" averaging and the fractured toggle, explained under the mod.</summary>
     public string? Hint
     {
         get
@@ -114,10 +86,6 @@ public sealed class ModFilterRow : Observable
     }
 
     public bool HasHint => Hint is not null;
-
-    public bool Enabled { get => _enabled; set => Set(ref _enabled, value); }
-    public string MinText { get => _minText; set => Set(ref _minText, value); }
-    public string MaxText { get => _maxText; set => Set(ref _maxText, value); }
 
     public static ModFilterRow Create(MatchedMod match, ParsedItem item)
     {
@@ -161,35 +129,48 @@ public sealed class ModFilterRow : Observable
     public static string Format(double value) =>
         Math.Round(value, 2).ToString("0.##", CultureInfo.InvariantCulture);
 
-    public static double? ParseNumber(string text)
+    public static double? ParseNumber(string? text)
     {
+        if (text is null)
+            return null;
         text = text.Trim().Replace(',', '.');
         return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
     }
 }
 
+/// <summary>
+/// A toggle chip in the "아이템" row: an item flag from game-data.json (분열, 결합, 작열의 총주교, ...),
+/// an influence, or the Foulborn filter.
+/// </summary>
+public sealed partial class ChipViewModel : ObservableObject
+{
+    public enum ChipKind { Flag, Influence, Foulborn }
+
+    public required ChipKind Kind { get; init; }
+
+    /// <summary>Flag or influence id ("fractured", "shaper"); unused for Foulborn.</summary>
+    public required string Id { get; init; }
+
+    public required string Label { get; init; }
+    public string? Tooltip { get; init; }
+
+    [ObservableProperty] private bool _isChecked;
+}
+
 /// <summary>A search result as shown in the list.</summary>
 public sealed class ListingView
 {
-    // Community names for the common currencies; others use the trade site's English name.
-    private static readonly Dictionary<string, string> KoreanCurrencyNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["chaos"] = "카오스",
-        ["divine"] = "디바인",
-        ["exalted"] = "엑잘티드",
-        ["mirror"] = "미러",
-    };
-
     public required TradeListing Listing { get; init; }
     public required int Rank { get; init; }
     public required CurrencyCatalog Currencies { get; init; }
 
     public string PriceAmount => Listing.PriceAmount is { } a ? ModFilterRow.Format(a) : "—";
 
-    // Short community names first ("카오스"), then the server's own name ("변화의 오브" on Kakao).
+    // Short community names first ("카오스", game-data.json "currencyNames"), then the server's own name.
     public string PriceCurrency => Listing.PriceCurrency is not { } c
         ? "가격 없음"
-        : KoreanCurrencyNames.GetValueOrDefault(c) ?? Currencies.Find(c)?.Name ?? c;
+        : GameData.Current.CurrencyNames.FirstOrDefault(n => string.Equals(n.Key, c, StringComparison.OrdinalIgnoreCase)).Value
+          ?? Currencies.Find(c)?.Name ?? c;
 
     public string? PriceIcon => Currencies.Find(Listing.PriceCurrency)?.ImageUrl;
 
@@ -210,24 +191,21 @@ public sealed class ListingView
 
     public bool IsCorrupted => Listing.Corrupted;
 
-    /// <summary>Gems: "20레벨 · 20%" (and "타락") in the result line itself.</summary>
+    /// <summary>Gems: "20레벨 · 퀄 20%" (and "타락") in the result line itself.</summary>
     public string GemInfo
     {
         get
         {
             if (Listing.GemLevel is null || Listing.ItemLevel is > 0)
                 return "";
-            var parts = new List<string> { $"{Listing.GemLevel}레벨" };
-            parts.Add($"퀄 {Listing.Quality ?? 0}%");
+            var parts = new List<string> { $"{Listing.GemLevel}레벨", $"퀄 {Listing.Quality ?? 0}%" };
             if (Listing.Corrupted) parts.Add("타락");
             return string.Join(" · ", parts);
         }
     }
 
-    public string SellerName => Listing.CharacterName ?? Listing.AccountName ?? "알 수 없음";
     public Brush OnlineColor => Listing.SellerOnline ? Palette.Online : Palette.TextFaint;
     public string ListedAgo => Listing.Indexed is { } t ? Ago(DateTimeOffset.UtcNow - t) : "";
-
 
     public IReadOnlyList<ModLineView> TopMods => Listing.Mods
         .Where(m => m.Kind is ListingModKind.Enchant or ListingModKind.Implicit)
@@ -270,6 +248,7 @@ public static class Palette
     public static readonly Brush ModFractured = Frozen("#A29162");
     public static readonly Brush Online = Frozen("#5FBF6A");
     public static readonly Brush TextFaint = Frozen("#5C5546");
+    public static readonly Brush Danger = Frozen("#D9534F");
 
     public static Brush Rarity(ItemRarity rarity) => rarity switch
     {

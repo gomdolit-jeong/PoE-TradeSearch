@@ -1,3 +1,4 @@
+using PoETradeSearch.Core.Data;
 using PoETradeSearch.Core.Parsing;
 
 namespace PoETradeSearch.Core.Trade;
@@ -7,18 +8,12 @@ public static class ModDefaults
 {
     /// <summary>
     /// Numeric stats that decide which variant of an item it is, so they are searched by exact value:
-    /// cluster jewel passive counts and Voices' socket / empty-passive counts.
+    /// cluster jewel passive counts and Voices' socket / empty-passive counts (game-data.json "variantStats").
     /// </summary>
-    private static readonly HashSet<string> VariantStatNumbers =
-    [
-        "stat_3086156145", // Adds # Passive Skills
-        "stat_4079888060", // # Added Passive Skills are Jewel Sockets
-        "stat_247746531",  // Adds # Jewel Socket Passive Skills (Voices)
-        "stat_1085446536", // Adds # Small Passive Skills which grant nothing (Voices)
-    ];
+    private static IReadOnlyList<string> VariantStatNumbers => GameData.Current.VariantStats;
 
     /// <summary>Item level thresholds where cluster jewels unlock new notables and mod tiers.</summary>
-    private static readonly int[] ClusterItemLevelSteps = [84, 75, 68, 50];
+    private static IReadOnlyList<int> ClusterItemLevelSteps => GameData.Current.ClusterItemLevelSteps;
 
     /// <summary>
     /// For cluster jewels the item level decides which notables can roll, so it is searched from the
@@ -58,6 +53,10 @@ public static class ModDefaults
 
         // Synthesised implicits are random and are what the item is bought for.
         if (type == ModType.Implicit && item.Synthesised)
+            return true;
+
+        // Item classes whose implicit is the whole item (viscera: "장착 중인 장화로 받는 보너스 #% 증가").
+        if (type == ModType.Implicit && GameData.Current.ClassRule(item.ItemClass)?.CheckImplicits == true)
             return true;
 
         // Implicits from a Vaal orb are rare and priced by which one it got.
