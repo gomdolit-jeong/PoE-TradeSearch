@@ -108,6 +108,29 @@ public class SearchViewModelTests
     }
 
     [Fact]
+    public void Mod_min_is_the_tier_bottom_and_max_is_left_open()
+    {
+        var vm = Create("""
+            아이템 종류: 한손 도끼
+            아이템 희귀도: 희귀
+            휴거 갈증
+            악령 도끼
+            --------
+            아이템 레벨: 57
+            --------
+            { 접두어 속성 부여 "포악한" (등급: 5) — 피해, 물리, 공격 }
+            물리 피해 97(85-109)% 증가
+            """, new StatMatcher([new("explicit.stat_1509134228", "물리 피해 #% 증가", "explicit")]));
+
+        var row = Assert.Single(vm.Mods);
+        Assert.Equal("85", row.MinText);
+        Assert.Equal("", row.MaxText); // a better roll can be cheaper
+        var filter = Assert.Single(vm.BuildOptions().Stats);
+        Assert.Equal(85, filter.Min);
+        Assert.Null(filter.Max);
+    }
+
+    [Fact]
     public void Foulborn_chip_sends_the_mutated_filter()
     {
         var vm = Create("""

@@ -98,11 +98,11 @@ public sealed partial class ModFilterRow : ObservableObject
         }
         else if (match.SearchRange is { } range)
         {
-            // Advanced copy: the whole range this tier can roll, e.g. 85~109 for "97(85-109)%".
+            // Advanced copy: from the bottom of this tier, e.g. 85~ for "97(85-109)%".
             min = Format(range.Min);
-            max = Format(range.Max);
         }
-        // Otherwise min = the item's own roll, so the first search finds items at least as good.
+        // Otherwise min = the item's own roll. The max stays empty: a better roll (or higher tier) can be
+        // cheaper, so it shouldn't be cut off. Only the variant counts above are searched exactly.
 
         return new ModFilterRow
         {
