@@ -8,6 +8,7 @@
         FontFamily="{StaticResource UiFont}" FontSize="14">
     <Window.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:NotEmptyToVisibilityConverter x:Key="NotEmptyToVis" />
     </Window.Resources>
 
     <!-- DataContext: ViewModels.MainViewModel -->
@@ -18,13 +19,34 @@
                 <Image DockPanel.Dock="Left" Source="/Assets/app.png" Width="48" Height="48" Margin="0,0,14,0"
                        VerticalAlignment="Top" RenderOptions.BitmapScalingMode="HighQuality" />
                 <StackPanel>
-                    <TextBlock Text="PoE Trade Search" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Gold}" Margin="0,0,0,3" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                        <TextBlock Text="PoE Trade Search" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Gold}" />
+                        <TextBlock Text="{Binding VersionText}" FontSize="12" Foreground="{StaticResource TextFaint}" Margin="6,0,0,0" />
+                    </StackPanel>
                     <TextBlock Text="{Binding StatusText}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <TextBlock Margin="0,6,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap"
                                Text="게임에서 아이템에 마우스를 올리고 단축키를 누르면 검색 창이 뜹니다. 검색 창에서 조건을 바꾸고 Enter로 다시 검색, Esc로 닫습니다." />
                 </StackPanel>
             </DockPanel>
         </Border>
+
+        <!-- New version on GitHub: one click downloads it, swaps the exe and restarts -->
+        <Border Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0"
+                CornerRadius="10" Background="#231E12" BorderBrush="{StaticResource GoldBright}" BorderThickness="1" Padding="16,10">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Button Content="변경 내용" Padding="10,4" Margin="0,0,8,0" Command="{Binding OpenReleasePageCommand}" />
+                    <Button Content="{Binding UpdateButtonText}" Style="{StaticResource PrimaryButton}" Command="{Binding InstallUpdateCommand}" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding UpdateText}" FontWeight="SemiBold" Foreground="{StaticResource GoldBright}" />
+                    <TextBlock Foreground="{StaticResource TextMuted}" FontSize="12.5" Margin="0,3,0,0" TextWrapping="Wrap"
+                               Text="누르면 새 버전을 받아서 바꾼 뒤 다시 시작합니다. 설정은 그대로 남습니다." />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        <TextBlock Text="{Binding UpdateStatus}" Foreground="{StaticResource TextMuted}" FontSize="12.5" Margin="4,6,0,0"
+                   TextWrapping="Wrap" Visibility="{Binding UpdateStatus, Converter={StaticResource NotEmptyToVis}}" />
 
         <!-- Shown when PoE runs as administrator and this app doesn't: Windows then blocks our key presses -->
         <Border Visibility="{Binding ShowElevationWarning, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0"

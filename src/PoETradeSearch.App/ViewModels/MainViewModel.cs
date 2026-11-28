@@ -10,6 +10,7 @@ using PoETradeSearch.App.Services;
 using PoETradeSearch.Core.Data;
 using PoETradeSearch.Core.Parsing;
 using PoETradeSearch.Core.Trade;
+using PoETradeSearch.Core.Update;
 
 namespace PoETradeSearch.App.ViewModels;
 
@@ -130,14 +131,80 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
         // GGG asks tools to identify themselves; requests without a User-Agent are rejected.
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("PoETradeSearch/0.6");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("PoETradeSearch/" + Updater.CurrentVersion);
         return http;
     }
 
     private ServerContext Current => _servers[SelectedServer.Id];
 
-    /// <summary>Loads stats (both servers), leagues and currency data.</summary>
-    public Task InitializeAsync() => Task.WhenAll(LoadAllStatsAsync(), LoadLeaguesAsync(), LoadCurrenciesAsync());
+    /// <summary>Loads stats (both servers), leagues and currency data, and checks for a new version.</summary>
+    public Task InitializeAsync() =>
+        Task.WhenAll(LoadAllStatsAsync(), LoadLeaguesAsync(), LoadCurrenciesAsync(), CheckForUpdateAsync());
+
+    // ---------------- Update ----------------
+
+    public string VersionText { get; } = "v" + Updater.CurrentVersion;
+
+    /// <summary>Set when GitHub has a newer release; shows the update bar.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdate), nameof(UpdateText))]
+    [NotifyCanExecuteChangedFor(nameof(InstallUpdateCommand))]
+    private ReleaseInfo? _availableUpdate;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallUpdateCommand))]
+    [NotifyPropertyChangedFor(nameof(UpdateButtonText))]
+    private bool _isUpdating;
+
+    [ObservableProperty] private string _updateStatus = "";
+
+    public bool HasUpdate => AvailableUpdate is not null;
+    public string UpdateText => AvailableUpdate is { } r ? $"새 버전이 나왔습니다: {r.Tag} (지금 {VersionText})" : "";
+    public string UpdateButtonText => IsUpdating ? "받는 중..." : "업데이트";
+
+    /// <summary>Opens a URL in the browser (set by the view; tests leave it alone).</summary>
+    public Action<string> OpenUrl { get; set; } = url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+
+    private async Task CheckForUpdateAsync()
+    {
+        if (System.Windows.Application.Current is App && App.JustUpdated)
+            UpdateStatus = $"{VersionText} 업데이트 완료";
+        AvailableUpdate = await Updater.CheckAsync();
+    }
+
+    private bool CanInstallUpdate() => AvailableUpdate is not null && !IsUpdating;
+
+    [RelayCommand(CanExecute = nameof(CanInstallUpdate))]
+    private async Task InstallUpdateAsync()
+    {
+        if (AvailableUpdate is not { } release)
+            return;
+        if (!Updater.CanReplaceExe())
+        {
+            UpdateStatus = "이 폴더에는 파일을 바꿀 권한이 없어 릴리스 페이지를 열었습니다. 직접 받아 주세요.";
+            OpenUrl(release.PageUrl);
+            return;
+        }
+
+        IsUpdating = true;
+        UpdateStatus = "새 버전을 받는 중... 0%";
+        try
+        {
+            var progress = new Progress<double>(p => UpdateStatus = $"새 버전을 받는 중... {p * 100:0}%");
+            await Updater.InstallAsync(release, progress);
+            UpdateStatus = "새 버전으로 다시 시작합니다";
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("업데이트 실패", ex);
+            UpdateStatus = "업데이트하지 못했습니다: " + ex.Message;
+            IsUpdating = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenReleasePage() => OpenUrl(AvailableUpdate?.PageUrl ?? ReleaseInfo.ReleasesPageUrl);
 
     private async Task LoadCurrenciesAsync()
     {
@@ -271,7 +338,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
-            StatusText = $"검색: {item.Name ?? item.BaseType} ({DateTime.Now:HH:mm:ss})";
+            StatusText = $"검색: {item.Name ?? item.BaseType}";
             var search = new SearchViewModel(item, matches, ctx.Api, CurrenciesFor(ctx.Server), await ctx.GetGemsAsync(),
                                              league.Id, league.Text);
             SearchRequested?.Invoke(search);

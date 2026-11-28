@@ -9,7 +9,8 @@ namespace PoETradeSearch.App.Views;
 /// <summary>
 /// Developer options for checking the windows without the game:
 /// "--item file" opens the search window for the item text in the file;
-/// "--snapshot dir" saves the windows as PNG files (works with a locked screen) and exits.
+/// "--snapshot dir" saves the windows as PNG files (works with a locked screen) and exits;
+/// "--install-update" presses the update button as soon as a newer release is found.
 /// </summary>
 internal static class DevTools
 {
@@ -19,6 +20,10 @@ internal static class DevTools
         int i = Array.IndexOf(args, "--item");
         if (i >= 0 && i + 1 < args.Length && File.Exists(args[i + 1]))
             await vm.ShowItemAsync(await File.ReadAllTextAsync(args[i + 1]));
+
+        // Runs the update button without clicking (to test the update flow with an older build).
+        if (args.Contains("--install-update") && vm.InstallUpdateCommand.CanExecute(null))
+            await vm.InstallUpdateCommand.ExecuteAsync(null);
 
         int s = Array.IndexOf(args, "--snapshot");
         if (s >= 0 && s + 1 < args.Length)
