@@ -182,6 +182,20 @@ public partial class SearchWindow : Window
     }
 
     /// <summary>Puts the window next to the mouse cursor, kept inside the screen's work area.</summary>
+    // Window size at 100% (matches the XAML).
+    private const double BaseWidth = 480, BaseHeight = 740, BaseMinWidth = 440, BaseMinHeight = 400;
+
+    /// <summary>Scales text and controls (setting "화면 크기"), keeping the window inside the screen.</summary>
+    public void ApplyScale(double scale)
+    {
+        RootBorder.LayoutTransform = scale == 1.0 ? Transform.Identity : new ScaleTransform(scale, scale);
+        var area = SystemParameters.WorkArea;
+        MinWidth = Math.Min(BaseMinWidth * scale, area.Width);
+        MinHeight = Math.Min(BaseMinHeight * scale, area.Height);
+        Width = Math.Min(BaseWidth * scale, area.Width);
+        Height = Math.Min(BaseHeight * scale, area.Height);
+    }
+
     public void PlaceNearCursor()
     {
         Native.NativeMethods.GetCursorPos(out var p);

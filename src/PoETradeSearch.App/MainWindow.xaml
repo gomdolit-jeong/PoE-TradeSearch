@@ -1,11 +1,11 @@
 <Window x:Class="PoETradeSearch.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PoE Trade Search" Width="600" SizeToContent="Height" ResizeMode="CanMinimize"
+        Title="PoE Trade Search" Width="640" SizeToContent="Height" ResizeMode="CanMinimize"
         Icon="/Assets/app.ico"
         Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
-        FontFamily="{StaticResource UiFont}" FontSize="13">
-    <StackPanel Margin="16">
+        FontFamily="{StaticResource UiFont}" FontSize="14">
+    <StackPanel x:Name="RootPanel" Margin="16">
         <!-- Status -->
         <Border Style="{StaticResource Card}">
             <DockPanel>
@@ -28,7 +28,7 @@
                         VerticalAlignment="Center" Margin="12,0,0,0" Click="RunAsAdminButton_Click" />
                 <StackPanel>
                     <TextBlock Text="게임이 관리자 권한으로 실행 중입니다" FontWeight="SemiBold" Foreground="#F08A84" />
-                    <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="12"
+                    <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="12.5"
                                Text="이 경우 Windows가 일반 프로그램의 키 입력을 막아서 아이템 복사가 되지 않습니다. 이 프로그램도 관리자 권한으로 실행해야 합니다." />
                 </StackPanel>
             </DockPanel>
@@ -37,11 +37,20 @@
         <!-- Settings -->
         <Border Style="{StaticResource Card}" Margin="0,10,0,0">
             <Grid>
+                <Grid.Resources>
+                    <!-- Same bottom margin as the control next to it, so label and control share one centre line -->
+                    <Style x:Key="SettingLabel" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                        <Setter Property="Margin" Value="0,0,0,10" />
+                    </Style>
+                </Grid.Resources>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="64" />
+                    <ColumnDefinition Width="84" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -52,7 +61,7 @@
                 <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="설정" Style="{StaticResource Caption}" />
 
                 <!-- Hotkey: click the box and press the combination -->
-                <TextBlock Grid.Row="1" Text="단축키" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" />
+                <TextBlock Grid.Row="1" Text="단축키" Style="{StaticResource SettingLabel}" />
                 <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,10">
                     <TextBox x:Name="HotkeyBox" Width="160" IsReadOnly="True" FontWeight="SemiBold" Cursor="Hand"
                              Foreground="{StaticResource GoldBright}" IsReadOnlyCaretVisible="False"
@@ -60,33 +69,41 @@
                              GotKeyboardFocus="HotkeyBox_GotKeyboardFocus" LostKeyboardFocus="HotkeyBox_LostKeyboardFocus"
                              PreviewKeyDown="HotkeyBox_PreviewKeyDown" />
                     <Button Content="기본값" Margin="8,0,0,0" Padding="10,4" Click="HotkeyResetButton_Click" />
-                    <TextBlock x:Name="HotkeyHintText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"
+                    <TextBlock x:Name="HotkeyHintText" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12.5"
                                Foreground="{StaticResource TextFaint}" Text="클릭 후 키 조합 입력" />
                 </StackPanel>
 
-                <TextBlock Grid.Row="2" Text="서버" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" />
+                <TextBlock Grid.Row="2" Text="서버" Style="{StaticResource SettingLabel}" />
                 <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,10">
                     <ComboBox x:Name="ServerCombo" Width="240" SelectionChanged="ServerCombo_SelectionChanged" />
-                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource TextFaint}" FontSize="12"
+                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource TextFaint}" FontSize="12.5"
                                Text="아이템 언어에 맞춰 자동 전환" />
                 </StackPanel>
 
-                <TextBlock Grid.Row="3" Text="리그" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" />
-                <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Grid.Row="3" Text="리그" Style="{StaticResource SettingLabel}" />
+                <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,10">
                     <ComboBox x:Name="LeagueCombo" Width="240" DisplayMemberPath="Text" MaxDropDownHeight="360"
                               SelectionChanged="LeagueCombo_SelectionChanged" />
                     <TextBlock x:Name="LeagueStatusText" Margin="10,0,0,0" VerticalAlignment="Center"
                                Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="4" Grid.Column="1">
+                <!-- Text/window scale for large or high-resolution screens -->
+                <TextBlock Grid.Row="4" Text="화면 크기" Style="{StaticResource SettingLabel}" />
+                <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,10">
+                    <ComboBox x:Name="ScaleCombo" Width="100" SelectionChanged="ScaleCombo_SelectionChanged" />
+                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource TextFaint}" FontSize="12.5"
+                               Text="검색 창의 글자와 창 크기" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="5" Grid.Column="1">
                     <CheckBox x:Name="OnlyInGameCheck" Content="PoE 창이 앞에 있을 때만 단축키 동작"
                               Checked="OptionCheck_Changed" Unchecked="OptionCheck_Changed" />
                     <CheckBox x:Name="ExitWithGameCheck" Content="게임을 종료하면 이 프로그램도 같이 종료" Margin="0,8,0,0"
                               Checked="OptionCheck_Changed" Unchecked="OptionCheck_Changed" />
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Ellipse x:Name="StatsDot" Width="7" Height="7" Fill="{StaticResource TextFaint}" Margin="0,1,8,0" VerticalAlignment="Center" />
-                        <TextBlock x:Name="StatsText" Foreground="{StaticResource TextMuted}" FontSize="12"
+                        <TextBlock x:Name="StatsText" Foreground="{StaticResource TextMuted}" FontSize="12.5"
                                    Text="거래소 데이터 불러오는 중..." TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>

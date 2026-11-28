@@ -35,6 +35,8 @@ public partial class MainWindow : Window
         ServerCombo.SelectedItem = TradeServer.FromId(_settings.Server);
         OnlyInGameCheck.IsChecked = _settings.OnlyInGame;
         ExitWithGameCheck.IsChecked = _settings.ExitWithGame;
+        ScaleCombo.ItemsSource = AppSettings.UiScales.Select(s => $"{s * 100:0}%").ToList();
+        ScaleCombo.SelectedIndex = Math.Max(0, Array.IndexOf(AppSettings.UiScales, _settings.UiScale));
         _changingServer = false;
 
         SourceInitialized += (_, _) => RegisterHotkey();
@@ -152,6 +154,16 @@ public partial class MainWindow : Window
         _settings.HotkeyKey = AppSettings.DefaultHotkeyKey;
         _settings.Save();
         RegisterHotkey();
+    }
+
+    /// <summary>Text and window size of the search window (this settings window keeps its own, larger text).</summary>
+    private void ScaleCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_changingServer || ScaleCombo.SelectedIndex < 0)
+            return;
+        _settings.UiScale = AppSettings.UiScales[ScaleCombo.SelectedIndex];
+        _settings.Save();
+        _searchWindow?.ApplyScale(_settings.UiScale);
     }
 
     private void OptionCheck_Changed(object sender, RoutedEventArgs e)
@@ -359,15 +371,17 @@ public partial class MainWindow : Window
         if (window.Content is not System.Windows.FrameworkElement root)
             return;
         root.UpdateLayout();
+        // Include the "화면 크기" scale (LayoutTransform) so the PNG matches what is on screen.
+        var size = root.LayoutTransform.TransformBounds(new Rect(root.RenderSize)).Size;
         var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(
-            (int)Math.Ceiling(root.ActualWidth), (int)Math.Ceiling(root.ActualHeight), 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            (int)Math.Ceiling(size.Width), (int)Math.Ceiling(size.Height), 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
         // Opaque background so transparent window corners don't come out black.
         var visual = new System.Windows.Media.DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
             dc.DrawRectangle(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x20, 0x20, 0x20)), null,
-                new Rect(0, 0, root.ActualWidth, root.ActualHeight));
-            dc.DrawRectangle(new System.Windows.Media.VisualBrush(root), null, new Rect(0, 0, root.ActualWidth, root.ActualHeight));
+                new Rect(0, 0, size.Width, size.Height));
+            dc.DrawRectangle(new System.Windows.Media.VisualBrush(root), null, new Rect(0, 0, size.Width, size.Height));
         }
         bmp.Render(visual);
         var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
@@ -455,6 +469,7 @@ public partial class MainWindow : Window
         var leagueText = (LeagueCombo.SelectedItem as League)?.Text ?? league;
         _searchWindow = new SearchWindow(item, matches, ctx.Api, CurrenciesFor(ctx.Server), gems, league, leagueText) { Owner = null };
         _searchWindow.Closed += (s, _) => { if (ReferenceEquals(_searchWindow, s)) _searchWindow = null; };
+        _searchWindow.ApplyScale(_settings.UiScale);
         _searchWindow.PlaceNearCursor();
         _searchWindow.Show();
         _searchWindow.Activate();

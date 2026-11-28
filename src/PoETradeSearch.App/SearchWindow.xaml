@@ -12,7 +12,7 @@
     </Window.Resources>
 
     <!-- Outer margin leaves room for the drop shadow -->
-    <Border Margin="10" CornerRadius="12" Background="{StaticResource Bg}"
+    <Border x:Name="RootBorder" Margin="10" CornerRadius="12" Background="{StaticResource Bg}"
             BorderBrush="{StaticResource Border}" BorderThickness="1">
         <Border.Effect>
             <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.7" Color="Black" />
@@ -233,6 +233,8 @@
                                     <Border Height="1" Margin="8,2" Background="{StaticResource Border}"
                                             Visibility="{Binding StartsNewGroup, Converter={StaticResource BoolToVis}}" />
                                     <Border x:Name="Row" Padding="8,2" Background="Transparent">
+                                        <!-- Every part is top-aligned on the first line (22 px = value box height):
+                                             checkbox, tag and mod text are centred on that line even when the text wraps. -->
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
@@ -240,25 +242,25 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <CheckBox Grid.Column="0" IsChecked="{Binding Enabled}" IsEnabled="{Binding IsMatched}"
-                                                      VerticalAlignment="Top" Margin="0,2,0,0" />
+                                                      VerticalAlignment="Top" Margin="0,3,0,0" />
                                             <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                                                <WrapPanel>
-                                                    <Border CornerRadius="4" Background="#2A2540" Padding="5,0" Margin="0,1,6,0"
-                                                            VerticalAlignment="Center"
+                                                <DockPanel MinHeight="22">
+                                                    <Border DockPanel.Dock="Left" CornerRadius="4" Background="#2A2540" Padding="5,0" Margin="0,4,6,0"
+                                                            VerticalAlignment="Top"
                                                             Visibility="{Binding ShowTag, Converter={StaticResource BoolToVis}}">
                                                         <TextBlock Text="{Binding Tag}" FontSize="10" Foreground="{StaticResource ModCrafted}" />
                                                     </Border>
                                                     <!-- Fractured mods: click to switch between "fractured only" and "any" -->
-                                                    <ToggleButton Style="{StaticResource Chip}" Margin="0,0,6,0" Padding="7,0" FontSize="10.5"
-                                                                  VerticalAlignment="Center"
+                                                    <ToggleButton DockPanel.Dock="Left" Style="{StaticResource Chip}" Margin="0,2,6,0" Padding="7,0" FontSize="10.5"
+                                                                  VerticalAlignment="Top"
                                                                   IsChecked="{Binding SearchAsFractured}" Content="{Binding FractureToggleText}"
                                                                   ToolTip="켜면 이 옵션이 분열된 것만, 끄면 분열 여부와 상관없이 찾습니다"
                                                                   Visibility="{Binding IsFracturedMod, Converter={StaticResource BoolToVis}}" />
                                                     <TextBlock x:Name="ModText" Text="{Binding Text}" Foreground="{Binding TextColor}"
-                                                               TextWrapping="Wrap" VerticalAlignment="Center" />
-                                                </WrapPanel>
+                                                               TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,3,0,2" />
+                                                </DockPanel>
                                                 <TextBlock Text="{Binding Hint}" Foreground="{StaticResource TextMuted}" FontSize="10"
-                                                           Margin="0,0,0,0" TextWrapping="Wrap"
+                                                           Margin="0,0,0,2" TextWrapping="Wrap"
                                                            Visibility="{Binding HasHint, Converter={StaticResource BoolToVis}}" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top"

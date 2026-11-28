@@ -23,6 +23,11 @@ public sealed class AppSettings
     /// <summary>Close this app once the game process it saw has exited.</summary>
     public bool ExitWithGame { get; set; } = true;
 
+    /// <summary>Window and text scale: 1.0 = 100%. For large or high-resolution screens (e.g. 2560 wide).</summary>
+    public double UiScale { get; set; } = 1.0;
+
+    public static readonly double[] UiScales = [1.0, 1.15, 1.3, 1.5, 1.75, 2.0];
+
     private static string FilePath => Path.Combine(TradeDataCache.CacheDirectory, "settings.json");
 
     public static AppSettings Load()
