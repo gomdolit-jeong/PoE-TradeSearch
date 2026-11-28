@@ -26,15 +26,19 @@ dotnet test
 
 ## 배포용 exe 만들기
 
-.NET이 설치되지 않은 PC에서도 실행되는 exe 하나(`publish/PoETradeSearch.exe`)를 만듭니다.
+.NET이 설치되지 않은 PC에서도 실행되는 exe 하나(`publish/PoETradeSearch.exe`)를 만듭니다. 단일 파일 설정은 csproj에 들어 있습니다.
 
 ```powershell
-dotnet publish src/PoETradeSearch.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+dotnet publish src/PoETradeSearch.App -c Release -p:DebugType=none -o publish
 ```
 
-`IncludeAllContentForSelfExtract`가 없으면 WPF의 `DirectWriteForwarder.dll`을 못 읽어서 실행하자마자 종료됩니다.
+- 압축은 꺼져 있습니다(약 140MB). 압축된 자체 풀림 exe는 백신이 의심하는 경우가 많아서입니다. 옮길 때는 zip으로 묶으면 됩니다.
+- 거래소 데이터와 설정은 `%LOCALAPPDATA%\PoETradeSearch`에 저장됩니다. 로그 파일은 남기지 않습니다.
 
-거래소 stat 데이터는 `%LOCALAPPDATA%\PoETradeSearch\stats.json`에 하루 동안 캐시됩니다.
+### 개발용 실행 옵션
+
+- `--item 파일`: 파일에 담긴 아이템 텍스트로 바로 검색 창을 엽니다.
+- `--snapshot 폴더`: 메인 창과 검색 창을 PNG로 저장하고 종료합니다(화면이 잠겨 있어도 동작).
 
 ## 아이콘
 
@@ -46,14 +50,13 @@ powershell -ExecutionPolicy Bypass -File tools\make-icon.ps1
 
 ## 문제가 생겼을 때
 
-- 로그는 `%LOCALAPPDATA%\PoETradeSearch\logs\log-날짜.txt`에 남습니다. 단축키 입력, 앞에 있던 창, Ctrl+C 전송 결과, 클립보드 응답 시간, 검색 요청이 기록됩니다.
-- 메인 창의 **진단 정보 복사** 버튼은 환경 정보와 최근 로그를 한 번에 복사합니다.
-- 게임이 관리자 권한으로 실행 중이면 Windows가 이 프로그램의 Ctrl+C를 막습니다. 메인 창에 경고와 "관리자 권한으로 다시 실행" 버튼이 나타납니다.
+- 게임이 관리자 권한으로 실행 중이면 Windows가 이 프로그램의 키 입력을 막습니다. 메인 창에 경고와 "관리자 권한으로 다시 실행" 버튼이 나타납니다.
+- 다운로드할 때 "의심되는 파일" 경고가 뜨는 것은 코드 서명이 없는 exe라서입니다. "추가 정보 → 실행"으로 실행할 수 있습니다.
 
 ## 진행 상황
 
 - [x] 1단계: 단축키 → Ctrl+C → 클립보드 → 아이템 파서 (영문 클라이언트)
 - [x] 2단계: 옵션 문장 → 거래소 stat ID 매칭 (`/api/trade/data/stats`)
 - [x] 3단계: 검색 쿼리 생성 + `search` / `fetch` 호출, rate limit 준수
-- [x] 4단계: 검색 창 (옵션 선택, 최소/최대값 입력, 가격 낮은 순 결과, 브라우저로 열기, 귓속말 복사)
-- [ ] 5단계: 설정 (리그, 단축키), 트레이 아이콘, 한글(카카오) 클라이언트 지원
+- [x] 4단계: 검색 창 (옵션 선택, 티어 범위로 최소/최대값, 가격 낮은 순 결과, 브라우저로 열기)
+- [x] 5단계: 설정 (단축키, 서버, 리그), 한글(카카오) 클라이언트 지원, 게임 종료 시 같이 종료

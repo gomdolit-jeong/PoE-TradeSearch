@@ -21,6 +21,21 @@
     <AssemblyName>PoETradeSearch</AssemblyName>
     <!-- exe / taskbar icon. Regenerate with tools\make-icon.ps1. -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+
+    <!-- File properties shown by Windows (an exe without them looks more suspicious to SmartScreen/antivirus). -->
+    <Version>0.5.0</Version>
+    <Product>PoE Trade Search</Product>
+    <AssemblyTitle>PoE Trade Search</AssemblyTitle>
+    <Description>Path of Exile 거래소 시세 검색 도구</Description>
+    <Copyright>MIT License</Copyright>
+
+    <!-- Single-file publish settings (see README). Compression is off: compressed self-extracting exes are
+         flagged by antivirus heuristics more often. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
   </PropertyGroup>
 
 </Project>

@@ -94,6 +94,8 @@ public sealed class ModFilterRow : Observable
             if (!Match.IsMatched)
                 return "거래소에서 찾을 수 없는 옵션이라 검색에 쓸 수 없습니다";
             var hints = new List<string>();
+            if (Match.SearchRange is { } range && !ModDefaults.UseExactValue(Match))
+                hints.Add($"현재 {Format(Match.SearchValue ?? 0)} · 이 티어 범위 {Format(range.Min)}~{Format(range.Max)}");
             if (Match.Values.Count > 1)
                 hints.Add($"{string.Join(" ~ ", Match.Values.Select(Format))}의 평균값 {Format(Match.SearchValue!.Value)}(으)로 검색합니다");
             if (IsFracturedMod)
@@ -113,14 +115,26 @@ public sealed class ModFilterRow : Observable
     public static ModFilterRow Create(MatchedMod match, ParsedItem item)
     {
         var value = match.SearchValue is { } v ? Format(v) : "";
+        string min = value, max = "";
+        if (ModDefaults.UseExactValue(match))
+        {
+            // Variant counts (cluster passives, Voices sockets) are searched exactly.
+            max = value;
+        }
+        else if (match.SearchRange is { } range)
+        {
+            // Advanced copy: the whole range this tier can roll, e.g. 85~109 for "97(85-109)%".
+            min = Format(range.Min);
+            max = Format(range.Max);
+        }
+        // Otherwise min = the item's own roll, so the first search finds items at least as good.
+
         return new ModFilterRow
         {
             Match = match,
             Enabled = ModDefaults.EnabledByDefault(item, match),
-            // Default min = the item's own roll, so the first search finds items at least as good.
-            // Variant counts (cluster passives, Voices sockets) are searched exactly.
-            MinText = value,
-            MaxText = ModDefaults.UseExactValue(match) ? value : "",
+            MinText = min,
+            MaxText = max,
         };
     }
 

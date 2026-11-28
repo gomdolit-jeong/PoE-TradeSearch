@@ -54,20 +54,23 @@ public static class ItemClipboardReader
         if (NativeMethods.IsKeyDown(hotkeyVk))
             Log.Warn("단축키의 D 키가 300ms 안에 떼어지지 않아 그대로 Ctrl+C를 보냅니다");
 
-        // Release Shift/Alt so the game sees a plain Ctrl+C.
-        var release = new List<(ushort, bool)>();
-        if (NativeMethods.IsKeyDown(NativeMethods.VK_SHIFT)) release.Add((NativeMethods.VK_SHIFT, true));
-        if (NativeMethods.IsKeyDown(NativeMethods.VK_MENU)) release.Add((NativeMethods.VK_MENU, true));
-        if (release.Count > 0) NativeMethods.SendKeys([.. release]);
+        // Release Shift so the game sees exactly Ctrl+Alt+C.
+        if (NativeMethods.IsKeyDown(NativeMethods.VK_SHIFT))
+            NativeMethods.SendKeys((NativeMethods.VK_SHIFT, true));
 
+        // Ctrl+Alt+C is the game's advanced copy: same text plus each mod's tier and roll range
+        // ("97(85-109)%"), which the search window uses as the default min/max.
         bool ctrlHeld = NativeMethods.IsKeyDown(NativeMethods.VK_CONTROL);
+        bool altHeld = NativeMethods.IsKeyDown(NativeMethods.VK_MENU);
         var keys = new List<(ushort, bool)>();
         if (!ctrlHeld) keys.Add((NativeMethods.VK_CONTROL, false));
+        if (!altHeld) keys.Add((NativeMethods.VK_MENU, false));
         keys.Add((NativeMethods.VK_C, false));
         keys.Add((NativeMethods.VK_C, true));
+        if (!altHeld) keys.Add((NativeMethods.VK_MENU, true));
         if (!ctrlHeld) keys.Add((NativeMethods.VK_CONTROL, true));
         var (sent, error) = NativeMethods.SendKeys([.. keys]);
-        Log.Info($"Ctrl+C 전송: ctrl누름={ctrlHeld} 이벤트 {sent}/{keys.Count}개 성공" + (error != 0 ? $" 오류={error}" : ""));
+        Log.Info($"Ctrl+Alt+C 전송: ctrl누름={ctrlHeld} alt누름={altHeld} 이벤트 {sent}/{keys.Count}개 성공" + (error != 0 ? $" 오류={error}" : ""));
 
         var started = DateTime.UtcNow;
         var deadline = started + timeout;

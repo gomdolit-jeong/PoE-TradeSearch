@@ -53,9 +53,38 @@
             </Border>
 
             <!-- Item conditions -->
-            <StackPanel Grid.Row="1" Margin="18,14,18,4">
-                <TextBlock Text="아이템 조건" Style="{StaticResource Caption}" />
-                <WrapPanel>
+            <!-- Conditions: one labelled row per group so they don't run together -->
+            <Grid Grid.Row="1" Margin="18,14,18,2">
+                <Grid.Resources>
+                    <Style x:Key="RowLabel" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                        <Setter Property="FontSize" Value="12" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="VerticalAlignment" Value="Top" />
+                        <Setter Property="Margin" Value="0,5,0,0" />
+                    </Style>
+                    <Style x:Key="SubLabel" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                        <Setter Property="FontSize" Value="12" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                        <Setter Property="Margin" Value="0,0,6,0" />
+                    </Style>
+                </Grid.Resources>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Item -->
+                <TextBlock Grid.Row="0" Text="아이템" Style="{StaticResource RowLabel}" />
+                <WrapPanel Grid.Row="0" Grid.Column="1">
                     <ToggleButton x:Name="BaseTypeChip" Style="{StaticResource Chip}" />
                     <ToggleButton x:Name="FracturedChip" Style="{StaticResource Chip}" Content="분열 아이템만"
                                   ToolTip="켜면 분열 아이템만, 끄면 같은 옵션이 붙은 일반 아이템도 찾습니다"
@@ -64,18 +93,44 @@
                     <ToggleButton x:Name="SearingChip" Style="{StaticResource Chip}" Content="서칭 엑자크" />
                     <ToggleButton x:Name="TangledChip" Style="{StaticResource Chip}" Content="이터 오브 월드" />
                     <WrapPanel x:Name="InfluenceChips" />
-                    <StackPanel x:Name="LinksPanel" Orientation="Horizontal" Margin="0,0,6,6">
-                        <ToggleButton x:Name="LinksChip" Style="{StaticResource Chip}" Margin="0" Content="링크 최소" />
-                        <TextBox x:Name="LinksText" Width="50" Margin="4,0,0,0"
-                                 IsEnabled="{Binding IsChecked, ElementName=LinksChip}" />
+                </WrapPanel>
+
+                <!-- Trade mode: which listings are searched -->
+                <TextBlock Grid.Row="1" Text="거래" Style="{StaticResource RowLabel}" />
+                <Border Grid.Row="1" Grid.Column="1" HorizontalAlignment="Left" CornerRadius="12" BorderThickness="1"
+                        BorderBrush="{StaticResource Border}" Background="{StaticResource Panel}" Padding="2" Margin="0,0,0,6">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="ModeBoth" Style="{StaticResource Segment}" GroupName="Mode" Content="즉시 구매 + 직접 거래" IsChecked="True"
+                                     ToolTip="상인 탭 즉시 구매와 온라인 판매자 직접 거래 매물을 모두 검색합니다" />
+                        <RadioButton x:Name="ModeInstant" Style="{StaticResource Segment}" GroupName="Mode" Content="즉시 구매만"
+                                     ToolTip="판매자가 없어도 바로 살 수 있는 상인 탭 매물만" />
+                        <RadioButton x:Name="ModeInPerson" Style="{StaticResource Segment}" GroupName="Mode" Content="직접 거래만"
+                                     ToolTip="지금 온라인인 판매자와 직접 거래하는 매물만" />
+                        <RadioButton x:Name="ModeAny" Style="{StaticResource Segment}" GroupName="Mode" Content="오프라인 포함"
+                                     ToolTip="오프라인 판매자 매물까지 모두" />
                     </StackPanel>
-                    <StackPanel x:Name="ItemLevelPanel" Orientation="Horizontal" Margin="0,0,6,6">
+                </Border>
+
+                <!-- Corrupted -->
+                <TextBlock Grid.Row="2" Text="타락" Style="{StaticResource RowLabel}" />
+                <Border Grid.Row="2" Grid.Column="1" HorizontalAlignment="Left" CornerRadius="12" BorderThickness="1"
+                        BorderBrush="{StaticResource Border}" Background="{StaticResource Panel}" Padding="2" Margin="0,0,0,6">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="CorruptedAny" Style="{StaticResource Segment}" GroupName="Corrupted" Content="상관없음" />
+                        <RadioButton x:Name="CorruptedOnly" Style="{StaticResource Segment}" GroupName="Corrupted" Content="타락만" />
+                        <RadioButton x:Name="CorruptedNo" Style="{StaticResource Segment}" GroupName="Corrupted" Content="타락 제외" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Numbers: item level, gem level, quality -->
+                <TextBlock Grid.Row="3" x:Name="NumbersCaption" Text="수치" Style="{StaticResource RowLabel}" />
+                <WrapPanel Grid.Row="3" Grid.Column="1" x:Name="NumbersPanel">
+                    <StackPanel x:Name="ItemLevelPanel" Orientation="Horizontal" Margin="0,0,14,6">
                         <ToggleButton x:Name="ItemLevelChip" Style="{StaticResource Chip}" Margin="0" Content="아이템 레벨 최소" />
                         <TextBox x:Name="ItemLevelText" Width="50" Margin="4,0,0,0"
                                  IsEnabled="{Binding IsChecked, ElementName=ItemLevelChip}" />
                     </StackPanel>
-                    <!-- Gems: level range -->
-                    <StackPanel x:Name="GemLevelPanel" Orientation="Horizontal" Margin="0,0,6,6">
+                    <StackPanel x:Name="GemLevelPanel" Orientation="Horizontal" Margin="0,0,14,6">
                         <ToggleButton x:Name="GemLevelChip" Style="{StaticResource Chip}" Margin="0" Content="젬 레벨" />
                         <TextBox x:Name="GemLevelMinText" Width="50" Margin="4,0,0,0" ToolTip="최소 (비우면 제한 없음)"
                                  IsEnabled="{Binding IsChecked, ElementName=GemLevelChip}" />
@@ -83,8 +138,7 @@
                         <TextBox x:Name="GemLevelMaxText" Width="50" ToolTip="최대 (비우면 제한 없음)"
                                  IsEnabled="{Binding IsChecked, ElementName=GemLevelChip}" />
                     </StackPanel>
-                    <!-- Quality range: gems, weapons, armour, flasks -->
-                    <StackPanel x:Name="QualityPanel" Orientation="Horizontal" Margin="0,0,6,6">
+                    <StackPanel x:Name="QualityPanel" Orientation="Horizontal" Margin="0,0,14,6">
                         <ToggleButton x:Name="QualityChip" Style="{StaticResource Chip}" Margin="0" Content="퀄리티" />
                         <TextBox x:Name="QualityMinText" Width="50" Margin="4,0,0,0" ToolTip="최소 (비우면 제한 없음)"
                                  IsEnabled="{Binding IsChecked, ElementName=QualityChip}" />
@@ -92,37 +146,52 @@
                         <TextBox x:Name="QualityMaxText" Width="50" ToolTip="최대 (비우면 제한 없음)"
                                  IsEnabled="{Binding IsChecked, ElementName=QualityChip}" />
                     </StackPanel>
-                    <!-- Trade mode: which listings are searched (merchant-tab instant buyout and/or in-person) -->
-                    <Border CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Border}"
-                            Background="{StaticResource Panel}" Padding="2" Margin="0,0,6,6">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="거래" Foreground="{StaticResource TextMuted}" FontSize="12"
-                                       VerticalAlignment="Center" Margin="8,0,4,0" />
-                            <RadioButton x:Name="ModeBoth" Style="{StaticResource Segment}" GroupName="Mode" Content="즉시 구매 + 직접 거래" IsChecked="True"
-                                         ToolTip="상인 탭 즉시 구매(골드 수수료)와 온라인 판매자 귓속말 거래를 모두 보여줍니다" />
-                            <RadioButton x:Name="ModeInstant" Style="{StaticResource Segment}" GroupName="Mode" Content="즉시 구매만"
-                                         ToolTip="판매자가 없어도 바로 살 수 있는 상인 탭 매물만 (골드 수수료가 붙습니다)" />
-                            <RadioButton x:Name="ModeInPerson" Style="{StaticResource Segment}" GroupName="Mode" Content="직접 거래만"
-                                         ToolTip="지금 온라인인 판매자와 귓속말로 거래하는 매물만" />
-                            <RadioButton x:Name="ModeAny" Style="{StaticResource Segment}" GroupName="Mode" Content="오프라인 포함"
-                                         ToolTip="오프라인 판매자 매물까지 모두" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Corrupted: any / only / exclude -->
-                    <Border CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Border}"
-                            Background="{StaticResource Panel}" Padding="2" Margin="0,0,6,6">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="타락" Foreground="{StaticResource TextMuted}" FontSize="12"
-                                       VerticalAlignment="Center" Margin="8,0,4,0" />
-                            <RadioButton x:Name="CorruptedAny" Style="{StaticResource Segment}" GroupName="Corrupted" Content="상관없음" />
-                            <RadioButton x:Name="CorruptedOnly" Style="{StaticResource Segment}" GroupName="Corrupted" Content="타락만" />
-                            <RadioButton x:Name="CorruptedNo" Style="{StaticResource Segment}" GroupName="Corrupted" Content="타락 제외" />
-                        </StackPanel>
-                    </Border>
                 </WrapPanel>
-            </StackPanel>
 
+                <!-- Sockets: total | colours | links, clearly separated -->
+                <TextBlock Grid.Row="4" x:Name="SocketsCaption" Text="홈" Style="{StaticResource RowLabel}" />
+                <WrapPanel Grid.Row="4" Grid.Column="1" x:Name="SocketsRow">
+                    <StackPanel x:Name="SocketsPanel" Orientation="Horizontal" Margin="0,0,14,6">
+                        <StackPanel.Resources>
+                            <!-- Small fixed-height boxes so a single digit is never clipped -->
+                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                <Setter Property="Height" Value="26" />
+                                <Setter Property="Padding" Value="2,0" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
+                            </Style>
+                        </StackPanel.Resources>
+                        <ToggleButton x:Name="SocketsChip" Style="{StaticResource Chip}" Margin="0,0,10,0" Content="홈 조건" VerticalAlignment="Center"
+                                      ToolTip="홈 개수와 색상별 최소 개수 (비운 칸은 제한 없음)" />
+                        <TextBlock Text="총" Style="{StaticResource SubLabel}" />
+                        <TextBox x:Name="SocketCountText" Width="40" ToolTip="홈 개수 최소"
+                                 IsEnabled="{Binding IsChecked, ElementName=SocketsChip}" />
+                        <Rectangle Width="1" Height="18" Fill="{StaticResource BorderStrong}" Margin="12,0" VerticalAlignment="Center" />
+                        <TextBlock Text="색상" Style="{StaticResource SubLabel}" />
+                        <Border CornerRadius="10" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}"
+                                BorderThickness="1" Padding="8,3" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="10" Height="10" Fill="#D24A3C" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox x:Name="SocketRedText" Width="36" Margin="0,0,10,0" ToolTip="빨강 최소"
+                                         IsEnabled="{Binding IsChecked, ElementName=SocketsChip}" />
+                                <Ellipse Width="10" Height="10" Fill="#5BBE4E" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox x:Name="SocketGreenText" Width="36" Margin="0,0,10,0" ToolTip="초록 최소"
+                                         IsEnabled="{Binding IsChecked, ElementName=SocketsChip}" />
+                                <Ellipse Width="10" Height="10" Fill="#4C7BE0" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox x:Name="SocketBlueText" Width="36" Margin="0,0,10,0" ToolTip="파랑 최소"
+                                         IsEnabled="{Binding IsChecked, ElementName=SocketsChip}" />
+                                <Ellipse Width="10" Height="10" Fill="#EDEDED" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox x:Name="SocketWhiteText" Width="36" ToolTip="흰색 최소"
+                                         IsEnabled="{Binding IsChecked, ElementName=SocketsChip}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                    <StackPanel x:Name="LinksPanel" Orientation="Horizontal" Margin="0,0,14,6">
+                        <ToggleButton x:Name="LinksChip" Style="{StaticResource Chip}" Margin="0" Content="링크 최소" />
+                        <TextBox x:Name="LinksText" Width="40" Margin="4,0,0,0"
+                                 IsEnabled="{Binding IsChecked, ElementName=LinksChip}" />
+                    </StackPanel>
+                </WrapPanel>
+            </Grid>
             <!-- Mods -->
             <DockPanel Grid.Row="2" Margin="18,8,18,0" x:Name="ModsSection">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">

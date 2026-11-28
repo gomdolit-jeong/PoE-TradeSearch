@@ -19,6 +19,16 @@ public sealed record MatchedMod(
 {
     public bool IsMatched => Stat is not null;
     public string DisplayText => string.Join(" / ", Source.Select(s => s.Text));
+
+    /// <summary>
+    /// The tier's range in the same units as <see cref="SearchValue"/> (averaged for "Adds # to #"), when the item
+    /// text came from the advanced copy. "물리 피해 11(11-14)~23(21-25) 추가" → 16–19.5.
+    /// </summary>
+    public ValueRange? SearchRange { get; init; }
+
+    /// <summary>Which numbers of the item line (0-based, across joined lines) the stat's "#" placeholders took.</summary>
+    internal IReadOnlyList<int> ValueOrdinals { get; init; } = [];
+    internal bool Negated { get; init; }
 }
 
 /// <summary>
@@ -60,6 +70,10 @@ public sealed partial class StatMatcher
     [GeneratedRegex(@"[+-]?(?:#|\d+(?:\.\d+)?)")]
     private static partial Regex NumberOrPlaceholderRegex();
 
+    // Same number pattern the parser uses for ItemMod.Values, so ordinals line up with Values/Ranges.
+    [GeneratedRegex(@"[+-]?\d+(?:\.\d+)?")]
+    private static partial Regex NumberOnlyRegex();
+
     public StatMatcher(IEnumerable<StatDefinition> stats)
     {
         foreach (var stat in stats)
@@ -92,18 +106,34 @@ public sealed partial class StatMatcher
                 var two = TryMatch(joined, mod.Type, preferLocal);
                 if (two is not null)
                 {
-                    results.Add(two with { Source = [mod, item.Mods[i + 1]] });
+                    results.Add(WithRange(two with { Source = [mod, item.Mods[i + 1]] }));
                     i++;
                     continue;
                 }
             }
 
             results.Add(TryMatch(mod.Text, mod.Type, preferLocal) is { } one
-                ? one with { Source = [mod] }
+                ? WithRange(one with { Source = [mod] })
                 : new MatchedMod([mod], null, [], mod.Values, null));
         }
 
         return results;
+    }
+
+    /// <summary>Turns the source lines' tier ranges into a range for the search value.</summary>
+    private static MatchedMod WithRange(MatchedMod match)
+    {
+        var values = match.Source.SelectMany(s => s.Values).ToList();
+        var ranges = match.Source.SelectMany(s => s.Ranges ?? s.Values.Select(_ => (ValueRange?)null)).ToList();
+        if (match.ValueOrdinals.Count == 0 || ranges.Count != values.Count ||
+            !match.ValueOrdinals.Any(o => o < ranges.Count && ranges[o] is not null))
+            return match;
+
+        // A number without its own range (fixed part of a hybrid roll) counts as exactly its value.
+        double lo = match.ValueOrdinals.Average(o => ranges[o]?.Min ?? values[o]);
+        double hi = match.ValueOrdinals.Average(o => ranges[o]?.Max ?? values[o]);
+        var range = match.Negated ? new ValueRange(-hi, -lo) : new ValueRange(lo, hi);
+        return match with { SearchRange = range };
     }
 
     private MatchedMod? TryMatch(string text, ModType type, bool preferLocal)
@@ -153,17 +183,16 @@ public sealed partial class StatMatcher
             // Local candidates carry the suffix in their regex, so match against the text with it appended.
             var input = text + suffix;
 
-            var matching = new List<(Candidate Candidate, List<double> Values)>();
+            var matching = new List<(Candidate Candidate, List<double> Values, List<int> Ordinals)>();
             foreach (var c in candidates)
             {
-                var values = c.TryExtract(input);
-                if (values is not null)
-                    matching.Add((c, values));
+                if (c.TryExtract(input) is { } extracted)
+                    matching.Add((c, extracted.Values, extracted.Ordinals));
             }
             if (matching.Count == 0)
                 continue;
 
-            var (best, bestValues) = matching[0];
+            var (best, bestValues, ordinals) = matching[0];
             if (negate)
                 bestValues = bestValues.Select(v => -v).ToList();
 
@@ -173,7 +202,11 @@ public sealed partial class StatMatcher
                 .ToList();
 
             double? searchValue = bestValues.Count > 0 ? bestValues.Average() : null;
-            return new MatchedMod([], best.Stat, alternatives, bestValues, searchValue);
+            return new MatchedMod([], best.Stat, alternatives, bestValues, searchValue)
+            {
+                ValueOrdinals = ordinals,
+                Negated = negate,
+            };
         }
 
         return null;
@@ -212,16 +245,26 @@ public sealed partial class StatMatcher
 
         public StatDefinition Stat { get; } = stat;
 
-        public List<double>? TryExtract(string text)
+        /// <summary>
+        /// The "#" values, plus which number of the text each one is (counting every number, literal or not),
+        /// so the matching tier ranges can be looked up on the item line.
+        /// </summary>
+        public (List<double> Values, List<int> Ordinals)? TryExtract(string text)
         {
             _regex ??= BuildRegex(Stat.Text);
             var m = _regex.Match(text);
             if (!m.Success)
                 return null;
+            var numbers = NumberOnlyRegex().Matches(text);
             var values = new List<double>();
+            var ordinals = new List<int>();
             for (int g = 1; g < m.Groups.Count; g++)
+            {
                 values.Add(double.Parse(m.Groups[g].Value, CultureInfo.InvariantCulture));
-            return values;
+                int index = m.Groups[g].Index;
+                ordinals.Add(numbers.Count(n => n.Index < index));
+            }
+            return (values, ordinals);
         }
     }
 }

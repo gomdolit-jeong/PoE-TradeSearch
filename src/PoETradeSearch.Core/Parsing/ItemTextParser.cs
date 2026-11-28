@@ -109,18 +109,40 @@ public static partial class ItemTextParser
             line = match.Groups["text"].Value;
         }
 
-        // Advanced copy puts the roll range in parentheses: "+52(40-54) to maximum Life".
-        line = Regex.Replace(line, @"\((?:[+-]?\d+(?:\.\d+)?)-(?:[+-]?\d+(?:\.\d+)?)\)", "");
+        // Advanced copy (Ctrl+Alt+C) puts the tier's roll range after each number: "물리 피해 97(85-109)% 증가",
+        // "물리 피해 11(11-14)~23(21-25) 추가". Keep the range for every number, then drop it from the text.
+        var ranges = new List<ValueRange?>();
+        var clean = new System.Text.StringBuilder();
+        int last = 0;
+        foreach (Match m in NumberWithRangeRegex().Matches(line))
+        {
+            clean.Append(line, last, m.Groups["value"].Index + m.Groups["value"].Length - last);
+            last = m.Index + m.Length;
+            ranges.Add(m.Groups["lo"].Success
+                ? new ValueRange(ParseNumber(m.Groups["lo"].Value), ParseNumber(m.Groups["hi"].Value))
+                : null);
+        }
+        clean.Append(line, last, line.Length - last);
+        line = clean.ToString();
 
         var values = new List<double>();
         foreach (Match m in NumberRegex().Matches(line))
-            values.Add(double.Parse(m.Value, CultureInfo.InvariantCulture));
+            values.Add(ParseNumber(m.Value));
 
         // Keep the sign in the template ("+#"), since trade stat texts use it.
         var template = NumberRegex().Replace(line, m => m.Value[0] is '+' or '-' ? m.Value[0] + "#" : "#");
 
-        return new ItemMod(line, template, values, type);
+        return new ItemMod(line, template, values, type)
+        {
+            Ranges = ranges.Count == values.Count && ranges.Any(r => r is not null) ? ranges : null,
+        };
     }
+
+    private static double ParseNumber(string s) => double.Parse(s, CultureInfo.InvariantCulture);
+
+    // A number, optionally followed by its advanced-copy range "(lo-hi)". Ranges can be negative: "(-10--5)".
+    [GeneratedRegex(@"(?<value>[+-]?\d+(?:\.\d+)?)(?:\((?<lo>-?\d+(?:\.\d+)?)-(?<hi>-?\d+(?:\.\d+)?)\))?")]
+    private static partial Regex NumberWithRangeRegex();
 
     private static List<List<string>> SplitSections(string text)
     {

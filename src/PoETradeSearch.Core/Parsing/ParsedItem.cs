@@ -29,7 +29,17 @@ public enum ModType
 /// <param name="Text">Original line without the "(implicit)" style suffix, e.g. "+52 to maximum Life".</param>
 /// <param name="Template">Line with numbers replaced by "#", e.g. "+# to maximum Life". Used to match trade stat IDs.</param>
 /// <param name="Values">Numbers found in the line, in order.</param>
-public sealed record ItemMod(string Text, string Template, IReadOnlyList<double> Values, ModType Type);
+public sealed record ItemMod(string Text, string Template, IReadOnlyList<double> Values, ModType Type)
+{
+    /// <summary>
+    /// The tier's roll range for each value, from the advanced copy (Ctrl+Alt+C): "97(85-109)%" → 85–109.
+    /// Same length as <see cref="Values"/>; an entry is null when that number had no range. Null when the
+    /// text came from a normal copy.
+    /// </summary>
+    public IReadOnlyList<ValueRange?>? Ranges { get; init; }
+}
+
+public readonly record struct ValueRange(double Min, double Max);
 
 public sealed class ParsedItem
 {
@@ -70,6 +80,14 @@ public sealed class ParsedItem
     public int MaxLinks => Sockets is null
         ? 0
         : Sockets.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(g => g.Split('-').Length).DefaultIfEmpty(0).Max();
+
+    /// <summary>Total number of sockets: "R-G-B B" → 4.</summary>
+    public int SocketCount => SocketLetters.Count();
+
+    /// <summary>How many sockets of a colour: 'R', 'G', 'B', 'W' (white), 'A' (abyss).</summary>
+    public int SocketsOfColour(char colour) => SocketLetters.Count(c => c == colour);
+
+    private IEnumerable<char> SocketLetters => (Sockets ?? "").Where(char.IsLetter).Select(char.ToUpperInvariant);
 
     /// <summary>Other "Key: Value" properties (Armour, Evasion Rating, Physical Damage, ...).</summary>
     public Dictionary<string, string> Properties { get; } = new(StringComparer.OrdinalIgnoreCase);

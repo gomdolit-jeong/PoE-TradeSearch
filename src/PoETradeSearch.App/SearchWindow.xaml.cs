@@ -122,6 +122,13 @@ public partial class SearchWindow : Window
             InfluenceChips.Children.Add(chip);
         }
 
+        SocketsPanel.Visibility = item.SocketCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SocketsChip.IsChecked = defaults.SocketsMin is not null || defaults.SocketColours.Any;
+        SocketCountText.Text = defaults.SocketsMin?.ToString() ?? "";
+        SocketRedText.Text = defaults.SocketColours.Red?.ToString() ?? "";
+        SocketGreenText.Text = defaults.SocketColours.Green?.ToString() ?? "";
+        SocketBlueText.Text = defaults.SocketColours.Blue?.ToString() ?? "";
+        SocketWhiteText.Text = defaults.SocketColours.White?.ToString() ?? "";
         LinksPanel.Visibility = item.MaxLinks > 0 ? Visibility.Visible : Visibility.Collapsed;
         LinksChip.IsChecked = defaults.LinksMin is not null;
         LinksText.Text = item.MaxLinks > 0 ? item.MaxLinks.ToString() : "";
@@ -140,6 +147,12 @@ public partial class SearchWindow : Window
         QualityPanel.Visibility = gem || item.Quality is not null ? Visibility.Visible : Visibility.Collapsed;
         QualityChip.IsChecked = defaults.QualityMin is not null;
         QualityMinText.Text = item.Quality?.ToString() ?? "";
+
+        // Rows that don't apply to this item are hidden entirely (e.g. rings have no sockets).
+        bool anyNumbers = item.ItemLevel is not null || gem || item.Quality is not null;
+        NumbersCaption.Visibility = NumbersPanel.Visibility = anyNumbers ? Visibility.Visible : Visibility.Collapsed;
+        bool sockets = item.SocketCount > 0;
+        SocketsCaption.Visibility = SocketsRow.Visibility = sockets ? Visibility.Visible : Visibility.Collapsed;
 
         (defaults.Corrupted switch
         {
@@ -188,6 +201,10 @@ public partial class SearchWindow : Window
             QualityMin = QualityChip.IsChecked == true && QualityPanel.IsVisible ? ParseInt(QualityMinText.Text) : null,
             QualityMax = QualityChip.IsChecked == true && QualityPanel.IsVisible ? ParseInt(QualityMaxText.Text) : null,
             TransfiguredGem = _transfiguredGem,
+            SocketsMin = SocketsChip.IsChecked == true && SocketsPanel.IsVisible ? ParseInt(SocketCountText.Text) : null,
+            SocketColours = SocketsChip.IsChecked == true && SocketsPanel.IsVisible
+                ? new SocketColours(ParseInt(SocketRedText.Text), ParseInt(SocketGreenText.Text), ParseInt(SocketBlueText.Text), ParseInt(SocketWhiteText.Text))
+                : default,
         };
         options.Influences.AddRange(_influenceChips.Where(c => c.Value.IsChecked == true).Select(c => c.Key));
         foreach (var row in _rows)

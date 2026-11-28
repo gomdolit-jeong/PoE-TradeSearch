@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Net.Http;
-using System.Text;
 using System.Windows;
+using System.Windows.Input;
+using System.Windows.Threading;
 using PoETradeSearch.App.Native;
 using PoETradeSearch.App.Services;
 using PoETradeSearch.Core.Parsing;
@@ -10,37 +12,45 @@ namespace PoETradeSearch.App;
 
 public partial class MainWindow : Window
 {
-    private const ushort VK_D = 0x44;
-
     private static readonly HttpClient Http = CreateHttpClient();
 
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly Dictionary<string, ServerContext> _servers =
         TradeServer.All.ToDictionary(s => s.Id, s => new ServerContext(Http, s));
-
-    private GlobalHotkey? _priceCheckHotkey;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CurrencyCatalog> _currencies = new();
+    private readonly DispatcherTimer _gameWatcher = new() { Interval = TimeSpan.FromSeconds(3) };
+
+    private GlobalHotkey? _hotkey;
     private SearchWindow? _searchWindow;
     private bool _busy;
     private bool _changingServer;
+    private bool _gameSeen;
 
     public MainWindow()
     {
         InitializeComponent();
-        Log.Info($"시작: 버전 {typeof(MainWindow).Assembly.GetName().Version}, OS {Environment.OSVersion}, 관리자 권한 {ItemClipboardReader.SelfElevated}");
 
         _changingServer = true;
         ServerCombo.ItemsSource = TradeServer.All;
         ServerCombo.SelectedItem = TradeServer.FromId(_settings.Server);
+        OnlyInGameCheck.IsChecked = _settings.OnlyInGame;
+        ExitWithGameCheck.IsChecked = _settings.ExitWithGame;
         _changingServer = false;
 
-        SourceInitialized += (_, _) => RegisterHotkeys();
-        Loaded += async (_, _) => await Task.WhenAll(LoadAllStatsAsync(), LoadLeaguesAsync(), LoadCurrenciesAsync());
+        SourceInitialized += (_, _) => RegisterHotkey();
+        Loaded += async (_, _) =>
+        {
+            await Task.WhenAll(LoadAllStatsAsync(), LoadLeaguesAsync(), LoadCurrenciesAsync());
+            await OpenItemFromCommandLineAsync();
+        };
         // Check whenever the user comes back to this window (e.g. after starting the game).
         Activated += (_, _) => CheckRunningGameElevation();
+        _gameWatcher.Tick += (_, _) => WatchGame();
+        _gameWatcher.Start();
         Closed += (_, _) =>
         {
-            _priceCheckHotkey?.Dispose();
+            _gameWatcher.Stop();
+            _hotkey?.Dispose();
             Application.Current.Shutdown();
         };
     }
@@ -49,10 +59,189 @@ public partial class MainWindow : Window
     private ServerContext Current => _servers[SelectedServer.Id];
     private string? SelectedLeague => (LeagueCombo.SelectedItem as League)?.Id;
 
-    /// <summary>
-    /// Currency names and icons per server (Kakao has Korean names). A nice-to-have: without them prices
-    /// still show as text.
-    /// </summary>
+    private static HttpClient CreateHttpClient()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        // GGG asks tools to identify themselves; requests without a User-Agent are rejected.
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("PoETradeSearch/0.5");
+        return http;
+    }
+
+    // ---------------- Hotkey ----------------
+
+    private string HotkeyDescription => HotkeyText.Describe(_settings.HotkeyModifiers, _settings.HotkeyKey);
+
+    private bool RegisterHotkey()
+    {
+        _hotkey?.Dispose();
+        _hotkey = null;
+        try
+        {
+            _hotkey = new GlobalHotkey(this, _settings.HotkeyModifiers, _settings.HotkeyKey, HotkeyDescription);
+            _hotkey.Pressed += async (_, _) => await OnHotkeyAsync();
+            HotkeyBox.Text = HotkeyDescription;
+            StatusText.Text = $"대기 중 — 게임에서 아이템에 마우스를 올리고 {HotkeyDescription}를 누르세요";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            HotkeyBox.Text = HotkeyDescription;
+            StatusText.Text = $"단축키 {HotkeyDescription}를 등록하지 못했습니다. 다른 프로그램이 쓰고 있을 수 있어요. 다른 조합으로 바꿔 주세요.";
+            Log.Error("단축키 등록 실패", ex);
+            return false;
+        }
+    }
+
+    // While the box has focus the global hotkey is released, so pressing the current combination reaches the box.
+    private void HotkeyBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        _hotkey?.Dispose();
+        _hotkey = null;
+        HotkeyBox.Text = "키 조합을 누르세요...";
+        HotkeyHintText.Text = "Esc: 취소";
+    }
+
+    private void HotkeyBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        HotkeyHintText.Text = "클릭 후 키 조합 입력";
+        if (_hotkey is null)
+            RegisterHotkey();
+    }
+
+    private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        e.Handled = true;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        if (key == Key.Escape)
+        {
+            Keyboard.ClearFocus(); // restores the previous hotkey
+            FocusManager.SetFocusedElement(this, this);
+            return;
+        }
+        if (HotkeyText.IsModifierKey(key))
+            return; // wait for the actual key
+
+        uint modifiers = HotkeyText.ToModifiers(Keyboard.Modifiers);
+        uint vk = (uint)KeyInterop.VirtualKeyFromKey(key);
+        if (!HotkeyText.IsAllowed(modifiers, key))
+        {
+            HotkeyBox.Text = "Ctrl/Alt/Shift와 함께, 또는 F1~F12";
+            return;
+        }
+
+        var previous = (_settings.HotkeyModifiers, _settings.HotkeyKey);
+        _settings.HotkeyModifiers = modifiers;
+        _settings.HotkeyKey = vk;
+        if (RegisterHotkey())
+        {
+            _settings.Save();
+        }
+        else
+        {
+            (_settings.HotkeyModifiers, _settings.HotkeyKey) = previous;
+            RegisterHotkey();
+        }
+        Keyboard.ClearFocus();
+        FocusManager.SetFocusedElement(this, this);
+    }
+
+    private void HotkeyResetButton_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.HotkeyModifiers = AppSettings.DefaultHotkeyModifiers;
+        _settings.HotkeyKey = AppSettings.DefaultHotkeyKey;
+        _settings.Save();
+        RegisterHotkey();
+    }
+
+    private void OptionCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_changingServer)
+            return;
+        _settings.OnlyInGame = OnlyInGameCheck.IsChecked == true;
+        _settings.ExitWithGame = ExitWithGameCheck.IsChecked == true;
+        _settings.Save();
+    }
+
+    // ---------------- Game process ----------------
+
+    private static bool IsGameProcess(Process p) =>
+        p.ProcessName.StartsWith("PathOfExile", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Closes this app after the game it saw running has exited (if the option is on).</summary>
+    private void WatchGame()
+    {
+        bool running;
+        try
+        {
+            var processes = Process.GetProcesses();
+            running = processes.Any(IsGameProcess);
+            foreach (var p in processes) p.Dispose();
+        }
+        catch
+        {
+            return;
+        }
+
+        if (running)
+        {
+            _gameSeen = true;
+            return;
+        }
+        if (_gameSeen && ExitWithGameCheck.IsChecked == true)
+        {
+            Log.Info("게임이 종료되어 함께 종료");
+            Close();
+        }
+    }
+
+    /// <summary>Warns early if PoE is already running as administrator while this app isn't.</summary>
+    private void CheckRunningGameElevation()
+    {
+        if (ItemClipboardReader.SelfElevated)
+        {
+            ShowElevationWarning(false);
+            return;
+        }
+        try
+        {
+            foreach (var p in Process.GetProcesses())
+            {
+                using (p)
+                {
+                    if (!IsGameProcess(p))
+                        continue;
+                    ShowElevationWarning(NativeMethods.IsProcessElevated((uint)p.Id) == true);
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("게임 프로세스 확인 실패: " + ex.Message);
+        }
+    }
+
+    private void ShowElevationWarning(bool show) =>
+        ElevationPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+
+    private void RunAsAdminButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true, Verb = "runas" });
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            // The user pressed "No" on the UAC prompt, or the launch failed.
+            Log.Warn("관리자 권한 실행 취소 또는 실패: " + ex.Message);
+        }
+    }
+
+    // ---------------- Data ----------------
+
+    /// <summary>Currency names and icons per server (Kakao has Korean names). Prices still show without them.</summary>
     private async Task LoadCurrenciesAsync()
     {
         await Task.WhenAll(TradeServer.All.Select(async server =>
@@ -80,10 +269,9 @@ public partial class MainWindow : Window
             if (server != SelectedServer)
                 return; // the user switched servers meanwhile
             LeagueCombo.ItemsSource = leagues;
-            // The API lists the current challenge league first. League ids are the same on both servers.
+            // The API lists the current challenge league first, then Standard etc. League ids are the same on both servers.
             LeagueCombo.SelectedItem = leagues.FirstOrDefault(l => l.Id == _settings.League) ?? leagues.FirstOrDefault();
             LeagueStatusText.Text = "";
-            Log.Info($"{server.Id} 리그 목록: {string.Join(", ", leagues.Select(l => l.Id))} / 선택: {SelectedLeague}");
         }
         catch (Exception ex)
         {
@@ -107,7 +295,6 @@ public partial class MainWindow : Window
             return;
         _settings.Server = SelectedServer.Id;
         _settings.Save();
-        Log.Info("서버 변경: " + SelectedServer.Id);
         await LoadLeaguesAsync();
     }
 
@@ -117,7 +304,6 @@ public partial class MainWindow : Window
         var wanted = TradeServer.ForLanguage(item.Language);
         if (wanted == SelectedServer)
             return false;
-        Log.Info($"아이템 언어({item.Language})에 맞춰 서버 변경: {SelectedServer.Id} → {wanted.Id}");
         _changingServer = true;
         ServerCombo.SelectedItem = wanted;
         _changingServer = false;
@@ -127,84 +313,94 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private static HttpClient CreateHttpClient()
-    {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        // GGG asks tools to identify themselves; requests without a User-Agent are rejected.
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("PoETradeSearch/0.4");
-        return http;
-    }
-
-    private void RegisterHotkeys()
-    {
-        try
-        {
-            _priceCheckHotkey = new GlobalHotkey(this, NativeMethods.MOD_CONTROL, VK_D, "Ctrl+D");
-            _priceCheckHotkey.Pressed += async (_, _) => await OnPriceCheckHotkeyAsync();
-            StatusText.Text = $"대기 중 — 게임에서 아이템에 마우스를 올리고 {_priceCheckHotkey.Description}를 누르세요";
-            HotkeyText.Text = _priceCheckHotkey.Description;
-            Log.Info($"단축키 등록 성공: {_priceCheckHotkey.Description}");
-            HintText.Text = "단축키를 누르면 아이템 정보를 복사해서 검색 창을 띄우고, 가격 낮은 순으로 검색합니다. " +
-                            "검색 창에서 옵션과 최소/최대값을 바꾸고 Enter로 다시 검색할 수 있습니다. Esc로 닫습니다.";
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = "단축키 등록 실패";
-            HintText.Text = ex.Message;
-            Log.Error("단축키 등록 실패", ex);
-        }
-    }
-
     /// <summary>Loads both servers' option data so either client language works right away.</summary>
     private async Task LoadAllStatsAsync()
     {
-        var tasks = _servers.Values.Select(async ctx =>
+        await Task.WhenAll(_servers.Values.Select(async ctx =>
         {
-            try { await ctx.GetMatcherAsync(); } catch { /* logged in ServerContext */ }
+            try { await ctx.GetMatcherAsync(); } catch { /* shown below */ }
             await ctx.GetGemsAsync();
-        });
-        await Task.WhenAll(tasks);
+        }));
 
         bool allOk = _servers.Values.All(s => s.Matcher is not null);
-        StatsText.Text = "거래소 옵션 데이터 · " + string.Join("  ·  ",
-            _servers.Values.Select(s => $"{(s.Server == TradeServer.Kakao ? "카카오" : "글로벌")} {s.StatusText}"));
+        StatsText.Text = allOk
+            ? "거래소 데이터 준비 완료"
+            : "거래소 데이터 일부를 받지 못했습니다: " + string.Join(" · ",
+                _servers.Values.Where(s => s.Matcher is null).Select(s => $"{s.Server.DisplayName} {s.StatusText}"));
         StatsDot.Fill = allOk ? Palette.Online : (System.Windows.Media.Brush)FindResource("Danger");
     }
 
-    private async Task OnPriceCheckHotkeyAsync()
+    /// <summary>
+    /// For development: "PoETradeSearch.exe --item item.txt" opens the search window for the item text in the
+    /// file, so the window can be checked without the game.
+    /// </summary>
+    private async Task OpenItemFromCommandLineAsync()
+    {
+        var args = Environment.GetCommandLineArgs();
+        int i = Array.IndexOf(args, "--item");
+        if (i >= 0 && i + 1 < args.Length && System.IO.File.Exists(args[i + 1]))
+            await ShowItemAsync(await System.IO.File.ReadAllTextAsync(args[i + 1]));
+
+        // "--snapshot dir": render the windows to PNG files (works even with a locked screen), then exit.
+        int s = Array.IndexOf(args, "--snapshot");
+        if (s >= 0 && s + 1 < args.Length)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(6)); // let the search finish
+            System.IO.Directory.CreateDirectory(args[s + 1]);
+            SaveSnapshot(this, System.IO.Path.Combine(args[s + 1], "main.png"));
+            if (_searchWindow is not null)
+                SaveSnapshot(_searchWindow, System.IO.Path.Combine(args[s + 1], "search.png"));
+            Close();
+        }
+    }
+
+    private static void SaveSnapshot(Window window, string path)
+    {
+        if (window.Content is not System.Windows.FrameworkElement root)
+            return;
+        root.UpdateLayout();
+        var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            (int)Math.Ceiling(root.ActualWidth), (int)Math.Ceiling(root.ActualHeight), 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        // Opaque background so transparent window corners don't come out black.
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x20, 0x20, 0x20)), null,
+                new Rect(0, 0, root.ActualWidth, root.ActualHeight));
+            dc.DrawRectangle(new System.Windows.Media.VisualBrush(root), null, new Rect(0, 0, root.ActualWidth, root.ActualHeight));
+        }
+        bmp.Render(visual);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+        using var file = System.IO.File.Create(path);
+        encoder.Save(file);
+    }
+
+    // ---------------- Search ----------------
+
+    private async Task OnHotkeyAsync()
     {
         var fg = ForegroundInfo.Current();
-        Log.Info($"단축키 눌림: 앞에 있는 창 {fg}");
-
         if (_busy)
-        {
-            Log.Info("이전 처리 중이라 무시");
             return;
-        }
         if (OnlyInGameCheck.IsChecked == true && !fg.IsGame)
-        {
-            StatusText.Text = $"앞에 있는 창이 PoE가 아니라서 무시했습니다: '{fg.Title}' ({fg.ProcessName ?? "?"})";
-            Log.Warn("PoE 창이 아니라서 무시");
             return;
-        }
 
         bool elevationMismatch = fg.Elevated == true && !ItemClipboardReader.SelfElevated;
         ShowElevationWarning(elevationMismatch);
-        if (elevationMismatch)
-            Log.Warn("게임이 관리자 권한으로 실행 중이고 이 프로그램은 아님 — Windows가 Ctrl+C 입력을 막을 수 있음");
 
         _busy = true;
         try
         {
-            var text = await ItemClipboardReader.CopyItemUnderCursorAsync(VK_D, TimeSpan.FromMilliseconds(700));
+            var text = await ItemClipboardReader.CopyItemUnderCursorAsync((ushort)_settings.HotkeyKey, TimeSpan.FromMilliseconds(700));
             if (text is null)
             {
                 StatusText.Text = elevationMismatch
                     ? "아이템을 복사하지 못했습니다. 게임이 관리자 권한으로 실행 중이라 이 프로그램도 관리자 권한으로 실행해야 합니다."
-                    : "아이템을 복사하지 못했습니다. 마우스가 아이템 위에 있었나요? 계속 안 되면 '진단 정보 복사'를 눌러 보내주세요.";
+                    : "아이템을 복사하지 못했습니다. 마우스가 아이템 위에 있었나요?";
                 return;
             }
-            ShowItem(text);
+            await ShowItemAsync(text);
         }
         catch (Exception ex)
         {
@@ -217,157 +413,38 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Warns early if PoE is already running as administrator while this app isn't.</summary>
-    private void CheckRunningGameElevation()
-    {
-        if (ItemClipboardReader.SelfElevated)
-        {
-            ShowElevationWarning(false);
-            return;
-        }
-        try
-        {
-            foreach (var p in System.Diagnostics.Process.GetProcesses())
-            {
-                using (p)
-                {
-                    if (!p.ProcessName.StartsWith("PathOfExile", StringComparison.OrdinalIgnoreCase))
-                        continue;
-                    var elevated = NativeMethods.IsProcessElevated((uint)p.Id);
-                    Log.Info($"실행 중인 게임 발견: {p.ProcessName} pid={p.Id} 관리자 권한={elevated?.ToString() ?? "?"}");
-                    ShowElevationWarning(elevated == true);
-                    return;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("게임 프로세스 확인 실패: " + ex.Message);
-        }
-    }
-
-    private void ShowElevationWarning(bool show)
-    {
-        ElevationPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void RunAsAdminButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var exe = Environment.ProcessPath!;
-            Log.Info("관리자 권한으로 다시 실행: " + exe);
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = true, Verb = "runas" });
-            Application.Current.Shutdown();
-        }
-        catch (Exception ex)
-        {
-            // The user pressed "No" on the UAC prompt, or the launch failed.
-            Log.Warn("관리자 권한 실행 취소 또는 실패: " + ex.Message);
-        }
-    }
-
-    private void CopyDiagnosticsButton_Click(object sender, RoutedEventArgs e)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== PoE Trade Search 진단 정보 ===");
-        sb.AppendLine($"버전: {typeof(MainWindow).Assembly.GetName().Version}  실행 파일: {Environment.ProcessPath}");
-        sb.AppendLine($"OS: {Environment.OSVersion}  64비트: {Environment.Is64BitProcess}  관리자 권한: {ItemClipboardReader.SelfElevated}");
-        sb.AppendLine($"단축키: {_priceCheckHotkey?.Description ?? "등록 실패"}  PoE 창에서만: {OnlyInGameCheck.IsChecked}");
-        sb.AppendLine($"서버: {SelectedServer.Id}  리그: {SelectedLeague ?? "없음"}");
-        foreach (var s in _servers.Values)
-            sb.AppendLine($"옵션 데이터 {s.Server.Id}: {s.StatusText}");
-        sb.AppendLine($"상태: {StatusText.Text}");
-        sb.AppendLine();
-        sb.AppendLine("=== 최근 로그 ===");
-        sb.AppendLine(Log.RecentText());
-        try
-        {
-            Clipboard.SetText(sb.ToString());
-            StatusText.Text = "진단 정보를 클립보드에 복사했습니다. 그대로 붙여넣어 보내주세요.";
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = "복사 실패: " + ex.Message;
-        }
-    }
-
-    private void OpenLogFolderButton_Click(object sender, RoutedEventArgs e)
-    {
-        System.IO.Directory.CreateDirectory(Log.Directory);
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Log.Directory) { UseShellExecute = true });
-    }
-
-    private void ParseClipboardButton_Click(object sender, RoutedEventArgs e)
-    {
-        string? text = null;
-        try { text = Clipboard.GetText(); } catch { }
-
-        if (!ItemTextParser.LooksLikeItem(text))
-        {
-            StatusText.Text = "클립보드에 PoE 아이템 텍스트가 없습니다";
-            return;
-        }
-        ShowItem(text!);
-    }
-
-    private void CopyOutputButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            Clipboard.SetText(OutputText.Text);
-            StatusText.Text = "결과를 클립보드에 복사했습니다";
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = "복사 실패: " + ex.Message;
-        }
-    }
-
-    private async void ShowItem(string text)
+    private async Task ShowItemAsync(string text)
     {
         try
         {
             var item = ItemTextParser.Parse(text);
-            bool switched = await SwitchServerForAsync(item);
+            await SwitchServerForAsync(item);
             var ctx = Current;
 
-            IReadOnlyList<MatchedMod>? matches = null;
+            IReadOnlyList<MatchedMod> matches;
             try
             {
                 matches = (await ctx.GetMatcherAsync()).Match(item);
             }
             catch (Exception ex)
             {
-                Log.Warn($"{ctx.Server.Id} 옵션 데이터가 없어 매칭하지 못함: {ex.Message}");
+                StatusText.Text = "거래소 옵션 데이터가 없어 검색할 수 없습니다: " + ex.Message;
+                return;
             }
 
-            int matched = matches?.Count(m => m.IsMatched) ?? 0;
-            Log.Info($"아이템 파싱 ({item.Language}, {ctx.Server.Id}): {item.Rarity} '{item.Name ?? item.BaseType}' " +
-                     $"종류='{item.ItemClass}' 카테고리={ItemCategories.FromItemClass(item.ItemClass) ?? "없음"} " +
-                     $"옵션 {matched}/{matches?.Count ?? item.Mods.Count}개 매칭");
-            foreach (var m in matches?.Where(m => !m.IsMatched) ?? [])
-                Log.Warn("매칭 실패 옵션: " + m.DisplayText);
+            if (SelectedLeague is not { } league)
+            {
+                StatusText.Text = "리그를 선택해야 검색할 수 있습니다";
+                return;
+            }
 
-            StatusText.Text = matches is null
-                ? $"파싱 완료: {item.Name ?? item.BaseType} ({DateTime.Now:HH:mm:ss})"
-                : $"파싱 완료: {item.Name ?? item.BaseType} — 옵션 {matched}/{matches.Count}개 매칭 ({DateTime.Now:HH:mm:ss})";
-            if (switched)
-                StatusText.Text += $" · 서버를 {ctx.Server.DisplayName}(으)로 바꿨습니다";
-            OutputText.Text = Describe(item, matches);
-
-            if (matches is null)
-                StatusText.Text += " — 옵션 데이터가 없어 검색할 수 없습니다";
-            else if (SelectedLeague is not { } league)
-                StatusText.Text += " — 리그를 선택해야 검색할 수 있습니다";
-            else
-                OpenSearchWindow(item, matches, ctx, await ctx.GetGemsAsync(), league);
+            StatusText.Text = $"검색: {item.Name ?? item.BaseType} ({DateTime.Now:HH:mm:ss})";
+            OpenSearchWindow(item, matches, ctx, await ctx.GetGemsAsync(), league);
         }
         catch (Exception ex)
         {
             Log.Error("아이템 처리 실패. 원본:\n" + text, ex);
             StatusText.Text = "아이템을 읽지 못했습니다: " + ex.Message;
-            OutputText.Text = ex + Environment.NewLine + Environment.NewLine + text;
         }
     }
 
@@ -381,60 +458,5 @@ public partial class MainWindow : Window
         _searchWindow.PlaceNearCursor();
         _searchWindow.Show();
         _searchWindow.Activate();
-    }
-
-    private static string Describe(ParsedItem item, IReadOnlyList<MatchedMod>? matches)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine($"Class     : {item.ItemClass}");
-        sb.AppendLine($"Rarity    : {item.Rarity}");
-        if (item.Name is not null) sb.AppendLine($"Name      : {item.Name}");
-        sb.AppendLine($"Base      : {item.BaseType}");
-        if (item.ItemLevel is not null) sb.AppendLine($"Item Lv   : {item.ItemLevel}");
-        if (item.GemLevel is not null) sb.AppendLine($"Gem Lv    : {item.GemLevel}");
-        if (item.Quality is not null) sb.AppendLine($"Quality   : {item.Quality}%");
-        if (item.Sockets is not null) sb.AppendLine($"Sockets   : {item.Sockets}");
-        if (item.Influences.Count > 0) sb.AppendLine($"Influence : {string.Join(", ", item.Influences)}");
-
-        var flags = new List<string>();
-        if (item.Corrupted) flags.Add("Corrupted");
-        if (item.Unidentified) flags.Add("Unidentified");
-        if (item.Mirrored) flags.Add("Mirrored");
-        if (item.Synthesised) flags.Add("Synthesised");
-        if (flags.Count > 0) sb.AppendLine($"Flags     : {string.Join(", ", flags)}");
-
-        foreach (var (key, value) in item.Properties)
-            sb.AppendLine($"  {key}: {value}");
-
-        sb.AppendLine();
-        if (matches is null)
-        {
-            sb.AppendLine("Mods (stat 데이터 없음, 매칭 안 함):");
-            foreach (var mod in item.Mods)
-                sb.AppendLine($"  [{mod.Type,-9}] {mod.Template,-50} {string.Join(", ", mod.Values)}");
-        }
-        else
-        {
-            sb.AppendLine("Mods → 거래소 stat:");
-            foreach (var m in matches)
-            {
-                var type = m.Source[0].Type;
-                if (m.Stat is null)
-                {
-                    sb.AppendLine($"  [{type,-9}] ✗ 매칭 실패: {m.DisplayText}");
-                    continue;
-                }
-                sb.AppendLine($"  [{type,-9}] ✓ {m.Stat.Text.Replace("\n", " / ")}");
-                sb.Append($"              {m.Stat.Id}");
-                if (m.SearchValue is not null) sb.Append($"  값={m.SearchValue}");
-                if (m.AlternativeIds.Count > 0) sb.Append($"  (동일 텍스트: {string.Join(", ", m.AlternativeIds)})");
-                sb.AppendLine();
-            }
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("──── 원본 아이템 텍스트 ────");
-        sb.AppendLine(item.RawText.Trim());
-        return sb.ToString();
     }
 }

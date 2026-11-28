@@ -3,6 +3,12 @@ using PoETradeSearch.Core.Parsing;
 
 namespace PoETradeSearch.Core.Trade;
 
+/// <summary>Minimum sockets per colour; null = no requirement for that colour.</summary>
+public readonly record struct SocketColours(int? Red, int? Green, int? Blue, int? White)
+{
+    public bool Any => Red is not null || Green is not null || Blue is not null || White is not null;
+}
+
 public enum TradeMode
 {
     /// <summary>Instant buyout from merchant tabs (gold fee) plus online sellers for in-person trade.</summary>
@@ -50,6 +56,12 @@ public sealed class TradeQueryOptions
 
     public int? LinksMin { get; set; }
 
+    /// <summary>Total socket count minimum; null = any.</summary>
+    public int? SocketsMin { get; set; }
+
+    /// <summary>Minimum number of sockets per colour (R, G, B, W). Used only when the socket filter is on.</summary>
+    public SocketColours SocketColours { get; set; }
+
     public int? QualityMin { get; set; }
     public int? QualityMax { get; set; }
     public int? GemLevelMin { get; set; }
@@ -75,6 +87,8 @@ public sealed class TradeQueryOptions
             SearingExarch = item.SearingExarch,
             EaterOfWorlds = item.EaterOfWorlds,
             LinksMin = item.MaxLinks >= 5 ? item.MaxLinks : null,
+            // White sockets are rare and valuable (e.g. Dialla's Malefaction), so they are kept by default.
+            SocketColours = item.SocketsOfColour('W') > 0 ? new SocketColours(null, null, null, item.SocketsOfColour('W')) : default,
             Corrupted = item.Rarity is ItemRarity.Unique or ItemRarity.Gem ? item.Corrupted : null,
             ItemLevelMin = ModDefaults.ClusterItemLevelMin(item),
             GemLevelMin = gem ? item.GemLevel : null,
@@ -152,11 +166,21 @@ public static class TradeQueryBuilder
         if (miscFilters.Count > 0)
             filters["misc_filters"] = new JsonObject { ["filters"] = miscFilters };
 
+        var socketFilters = new JsonObject();
+        if (options.SocketsMin is not null || options.SocketColours.Any)
+        {
+            var sockets = new JsonObject();
+            if (options.SocketsMin is { } count) sockets["min"] = count;
+            if (options.SocketColours.Red is { } r) sockets["r"] = r;
+            if (options.SocketColours.Green is { } g) sockets["g"] = g;
+            if (options.SocketColours.Blue is { } b) sockets["b"] = b;
+            if (options.SocketColours.White is { } w) sockets["w"] = w;
+            socketFilters["sockets"] = sockets;
+        }
         if (options.LinksMin is { } links)
-            filters["socket_filters"] = new JsonObject
-            {
-                ["filters"] = new JsonObject { ["links"] = new JsonObject { ["min"] = links } },
-            };
+            socketFilters["links"] = new JsonObject { ["min"] = links };
+        if (socketFilters.Count > 0)
+            filters["socket_filters"] = new JsonObject { ["filters"] = socketFilters };
 
         if (filters.Count > 0)
             query["filters"] = filters;
