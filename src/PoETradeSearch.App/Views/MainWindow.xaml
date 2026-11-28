@@ -148,5 +148,12 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- Credit in the corner; the link opens the GitHub repository -->
+        <TextBlock HorizontalAlignment="Right" Margin="0,8,4,0" FontSize="11.5" Foreground="{StaticResource TextFaint}">
+            <Run Text="만든 사람 gomdolit-jeong ·" />
+            <Hyperlink Command="{Binding OpenRepositoryCommand}" Foreground="{StaticResource TextMuted}"
+                       TextDecorations="{x:Null}" ToolTip="GitHub 저장소 열기">GitHub</Hyperlink>
+        </TextBlock>
     </StackPanel>
 </Window>

@@ -204,6 +204,9 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void OpenRepository() => OpenUrl($"https://github.com/{ReleaseInfo.Repository}");
+
+    [RelayCommand]
     private void OpenReleasePage() => OpenUrl(AvailableUpdate?.PageUrl ?? ReleaseInfo.ReleasesPageUrl);
 
     private async Task LoadCurrenciesAsync()
