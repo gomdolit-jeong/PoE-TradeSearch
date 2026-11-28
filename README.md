@@ -35,6 +35,17 @@ dotnet publish src/PoETradeSearch.App -c Release -p:DebugType=none -o publish
 - 압축은 꺼져 있습니다(약 140MB). 압축된 자체 풀림 exe는 백신이 의심하는 경우가 많아서입니다. 옮길 때는 zip으로 묶으면 됩니다.
 - 거래소 데이터와 설정은 `%LOCALAPPDATA%\PoETradeSearch`에 저장됩니다. 로그 파일은 남기지 않습니다.
 
+### GitHub 릴리스 자동 배포
+
+`v`로 시작하는 태그를 푸시하면 GitHub Actions(`.github/workflows/release.yml`)가 테스트, exe 빌드를 거쳐 릴리스 페이지에 zip을 올립니다. 태그의 숫자가 exe 버전이 됩니다.
+
+```powershell
+git tag v0.6.0
+git push origin v0.6.0
+```
+
+Actions 탭에서 "Release"를 직접 실행하면 릴리스 없이 빌드 결과만 아티팩트로 받을 수 있습니다.
+
 ### 개발용 실행 옵션
 
 - `--item 파일`: 파일에 담긴 아이템 텍스트로 바로 검색 창을 엽니다.

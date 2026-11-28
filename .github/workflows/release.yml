@@ -1,0 +1,57 @@
+# 태그(v0.6.0 같은)를 푸시하면 테스트 → exe 빌드 → GitHub 릴리스에 zip을 올립니다.
+# Actions 탭에서 직접 실행(workflow_dispatch)하면 릴리스 없이 빌드 결과만 아티팩트로 남깁니다.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "11.0.x"
+
+      - name: 버전 정하기
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "0.0.0-dev" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: 테스트
+        run: dotnet test tests/PoETradeSearch.Tests -c Release
+
+      - name: exe 빌드
+        run: dotnet publish src/PoETradeSearch.App -c Release -p:DebugType=none -p:Version=${{ steps.version.outputs.version }} -o publish
+
+      - name: zip 만들기
+        shell: pwsh
+        run: Compress-Archive -Path publish/PoETradeSearch.exe -DestinationPath PoETradeSearch-${{ steps.version.outputs.version }}.zip
+
+      - name: 빌드 결과 보관
+        uses: actions/upload-artifact@v4
+        with:
+          name: PoETradeSearch-${{ steps.version.outputs.version }}
+          path: PoETradeSearch-${{ steps.version.outputs.version }}.zip
+
+      - name: GitHub 릴리스 만들기
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PoETradeSearch-${{ steps.version.outputs.version }}.zip
+          body: |
+            ## 설치
+            1. `PoETradeSearch-${{ steps.version.outputs.version }}.zip`을 받아서 압축을 풉니다.
+            2. `PoETradeSearch.exe`를 실행합니다. .NET을 따로 설치할 필요는 없습니다.
+
+            코드 서명이 없는 exe라서 Windows가 "PC 보호" 경고를 띄울 수 있습니다.
+            "추가 정보 → 실행"을 누르거나, 파일 속성에서 "차단 해제"를 체크하면 됩니다.
